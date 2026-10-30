@@ -15,7 +15,6 @@
             overflow-x: hidden;
         }
 
-        /* 全螢幕啟動時，清除 body padding */
         body.fullscreen-active {
             padding: 0 !important;
             overflow: hidden !important;
@@ -27,10 +26,11 @@
             padding-bottom: 30px;
         }
         
-        /* 強制播放視窗維持完美的 16:9 比例 */
+        /* 超強相容性 16:9 播放視窗容器 */
         .player-box {
             width: 100%;
-            aspect-ratio: 16 / 9;
+            height: 0;
+            padding-top: 56.25%; /* 9 / 16 = 56.25%，極致相容任何 TV WebView 的 16:9 比例 */
             background-color: #000;
             border-radius: 8px;
             margin-bottom: 20px;
@@ -38,7 +38,11 @@
             position: relative;
         }
 
+        /* 讓影片絕對定位填滿 16:9 的容器 */
         video {
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
             height: 100%;
             object-fit: contain; 
@@ -50,7 +54,7 @@
             -webkit-transform: translateZ(0);
         }
 
-        /* 隱藏原生媒體控制項 */
+        /* 隱藏原生控制條 */
         video::-webkit-media-controls,
         video::-webkit-media-controls-panel,
         video::-webkit-media-controls-play-button,
@@ -59,25 +63,24 @@
             display: none !important;
         }
 
-        /* 智能全屏模式：佔滿整個螢幕 */
+        /* 智能全屏模式：解開 16:9 限制，覆蓋全螢幕 */
         .player-box.fullscreen-mode {
             position: fixed !important;
             top: 0 !important;
             left: 0 !important;
             width: 100vw !important;
             height: 100vh !important;
-            aspect-ratio: auto !important;
+            padding-top: 0 !important; /* 全屏時重置 padding */
             z-index: 99999 !important;
             border-radius: 0 !important;
             margin: 0 !important;
             background: #000;
         }
 
-        /* 選台按鈕列表：加大間距（gap）與邊距，徹底分開按鈕 */
         .btn-list {
             display: flex;
             flex-direction: column;
-            gap: 12px; /* 增加按鈕之間的垂直間距 */
+            gap: 12px;
             margin-top: 10px;
         }
 
@@ -95,7 +98,6 @@
             transition: all 0.15s ease-in-out;
         }
 
-        /* 電視遙控器聚焦及滑鼠懸停效果 */
         button.channel-btn:focus, button.channel-btn:hover {
             background-color: #1565c0;
             border-color: #ffeb3b;
@@ -162,7 +164,6 @@
         }
     }
 
-    // 監聽鍵盤與遙控器返回鍵（Esc, Android Back, Backspace）
     window.addEventListener('keydown', (e) => {
         if (e.keyCode === 27 || e.keyCode === 4 || e.key === 'Escape' || e.key === 'Backspace') {
             const playerBox = document.getElementById('playerBox');
@@ -173,10 +174,7 @@
         }
     });
 
-    // 僅在播放中且手機打橫時自動全螢幕（不在開啟 App 時自動全屏）
     function checkOrientation() {
-        const playerBox = document.getElementById('playerBox');
-        // 只有正在播放頻道時，手機打橫才切換全螢幕
         if (flvPlayer && !isTVDevice()) {
             if (window.innerWidth > window.innerHeight) {
                 enterFullscreenMode();
@@ -232,7 +230,6 @@
             flvPlayer.play().then(() => {
                 statusText.innerText = '正在播放：' + name;
                 
-                // 用戶主動選台點擊後，TV 端與手機橫屏才進入全螢幕
                 if (isTVDevice()) {
                     enterFullscreenMode();
                 } else {
