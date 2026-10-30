@@ -32,6 +32,7 @@ jobs:
           cordova create myApp com.hjbe.player "黃敬波播放器"
           cd myApp
           cordova platform add android@13.0.0
+          sed -i '/<\/widget>/i \    <preference name="Fullscreen" value="true" \/>' config.xml
 
       - name: Copy Web Files and Icon
         run: |
