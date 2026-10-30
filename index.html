@@ -3,6 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- 強制 Android WebView 啟用最高品質渲染模式 -->
+    <meta name="renderer" content="webkit">
+    <meta name="force-rendering" content="webkit">
+    <meta name="x5-fullscreen" content="true">
+    <meta name="x5-page-mode" content="app">
     <title>黃敬波播放器-遙遙領先版</title>
     <script src="mpegts.min.js"></script>
     <style>
@@ -37,7 +42,7 @@
             position: relative;
         }
 
-        /* 畫質極限優化 CSS */
+        /* 畫質極限優化 CSS：強制高質量插補與 GPU 獨立圖層合成 */
         video {
             position: absolute;
             top: 0;
@@ -47,11 +52,9 @@
             object-fit: contain; 
             background-color: #000;
             
-            /* 強制 WebView 採用高質量的畫質縮放與渲染演算法 */
             image-rendering: -webkit-optimize-contrast;
             image-rendering: crisp-edges;
             
-            /* 強制獨立 GPU 合成圖層，提升大螢幕清晰度與色彩 */
             -webkit-transform: translate3d(0,0,0);
             transform: translate3d(0,0,0);
             -webkit-backface-visibility: hidden;
@@ -195,11 +198,60 @@
         exitFullscreenMode();
     });
 
+    // 主入口：點擊頻道時優先嘗試以 VLC 開啟，失敗或未安裝則自動降級內建 WebView 播放
     function playStream(url, name) {
+        const statusText = document.getElementById('statusText');
+        statusText.innerText = '正在嘗試拉起 VLC 播放器：' + name + '...';
+
+        let appHasBlurred = false;
+
+        const onBlur = () => {
+            appHasBlurred = true;
+            statusText.innerText = '已成功切換至 VLC 原生播放：' + name;
+            cleanupListeners();
+        };
+
+        const cleanupListeners = () => {
+            window.removeEventListener('blur', onBlur);
+            document.removeEventListener('visibilitychange', onVisibilityChange);
+        };
+
+        const onVisibilityChange = () => {
+            if (document.hidden) {
+                onBlur();
+            }
+        };
+
+        window.addEventListener('blur', onBlur);
+        document.addEventListener('visibilitychange', onVisibilityChange);
+
+        // 構建 VLC 專用 Intent 連結
+        const cleanUrl = url.replace(/^https?:\/\//, '');
+        const scheme = url.startsWith('https://') ? 'https' : 'http';
+        const vlcIntentUrl = `intent://${cleanUrl}#Intent;` +
+            `scheme=${scheme};` +
+            `type=video/*;` +
+            `package=org.videolan.vlc;` +
+            `S.title=${encodeURIComponent(name)};` +
+            `end`;
+
+        // 觸發調用外部 VLC
+        window.location.href = vlcIntentUrl;
+
+        // 1.5 秒安全等待：若未被切換到背景，判定未安裝 VLC，自動降級走內建 WebView
+        setTimeout(() => {
+            cleanupListeners();
+            if (!appHasBlurred) {
+                statusText.innerText = '未檢測到 VLC，自動改用內建 WebView 播放：' + name;
+                startNativeWebPlayer(url, name);
+            }
+        }, 1500);
+    }
+
+    // 內建 WebView 降級播放函式 (mpegts.js)
+    function startNativeWebPlayer(url, name) {
         const videoElement = document.getElementById('videoElement');
         const statusText = document.getElementById('statusText');
-
-        statusText.innerText = '正在載入：' + name + '...';
 
         if (flvPlayer) {
             flvPlayer.pause();
@@ -220,11 +272,11 @@
                 hasVideo: true,
                 url: url
             }, {
-                enableStashBuffer: true,            // 開啟 Buffer 緩衝，確保原汁原畫質
-                stashInitialSize: 512 * 1024,      // 512KB 初始緩衝，保證原碼率解碼
-                liveBufferLatencyChasing: false,   // 關閉追幀，避免為降延遲而強制丟失高畫質 Keyframe
+                enableStashBuffer: true,
+                stashInitialSize: 512 * 1024,
+                liveBufferLatencyChasing: false,
                 autoCleanupSourceBuffer: true,
-                enableWorker: false,               // 保持對舊電視盒的相容性
+                enableWorker: false,
                 lazyLoad: false
             });
 
@@ -232,7 +284,7 @@
             flvPlayer.load();
             
             flvPlayer.play().then(() => {
-                statusText.innerText = '正在播放：' + name;
+                statusText.innerText = '正在播放（內建 WebView）：' + name;
                 
                 if (isTVDevice()) {
                     enterFullscreenMode();
