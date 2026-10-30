@@ -198,36 +198,14 @@
         exitFullscreenMode();
     });
 
-    // 主入口：點擊頻道時優先嘗試以 VLC 開啟，失敗或未安裝則自動降級內建 WebView 播放
+    // 主入口：透過 iframe 觸發 VLC 喚醒，並以 document.hidden 確保準確降級
     function playStream(url, name) {
         const statusText = document.getElementById('statusText');
-        statusText.innerText = '正在嘗試拉起 VLC 播放器：' + name + '...';
+        statusText.innerText = '正在呼叫 VLC 播放器：' + name + '...';
 
-        let appHasBlurred = false;
-
-        const onBlur = () => {
-            appHasBlurred = true;
-            statusText.innerText = '已成功切換至 VLC 原生播放：' + name;
-            cleanupListeners();
-        };
-
-        const cleanupListeners = () => {
-            window.removeEventListener('blur', onBlur);
-            document.removeEventListener('visibilitychange', onVisibilityChange);
-        };
-
-        const onVisibilityChange = () => {
-            if (document.hidden) {
-                onBlur();
-            }
-        };
-
-        window.addEventListener('blur', onBlur);
-        document.addEventListener('visibilitychange', onVisibilityChange);
-
-        // 構建 VLC 專用 Intent 連結
         const cleanUrl = url.replace(/^https?:\/\//, '');
         const scheme = url.startsWith('https://') ? 'https' : 'http';
+
         const vlcIntentUrl = `intent://${cleanUrl}#Intent;` +
             `scheme=${scheme};` +
             `type=video/*;` +
@@ -235,17 +213,37 @@
             `S.title=${encodeURIComponent(name)};` +
             `end`;
 
-        // 觸發調用外部 VLC
-        window.location.href = vlcIntentUrl;
+        let iframe = document.getElementById('intent-iframe');
+        if (!iframe) {
+            iframe = document.createElement('iframe');
+            iframe.id = 'intent-iframe';
+            iframe.style.display = 'none';
+            document.body.appendChild(iframe);
+        }
 
-        // 1.5 秒安全等待：若未被切換到背景，判定未安裝 VLC，自動降級走內建 WebView
-        setTimeout(() => {
-            cleanupListeners();
-            if (!appHasBlurred) {
-                statusText.innerText = '未檢測到 VLC，自動改用內建 WebView 播放：' + name;
+        try {
+            iframe.src = vlcIntentUrl;
+            statusText.innerText = '已啟動 VLC 播放：' + name;
+        } catch (e) {
+            console.log('Intent 觸發例外，走降級通道', e);
+            startNativeWebPlayer(url, name);
+            return;
+        }
+
+        // 1.5 秒安全等待：若頁面未被切入背景（代表 VLC 未成功拉起或未安裝），則自動降級走內建 WebView
+        let fallbackTimer = setTimeout(() => {
+            if (!document.hidden) {
+                console.warn('VLC 未響應，執行內建 WebView 降級');
+                statusText.innerText = 'VLC 未響應，切換至內建 WebView 播放：' + name;
                 startNativeWebPlayer(url, name);
             }
         }, 1500);
+
+        const clearFallback = () => {
+            clearTimeout(fallbackTimer);
+            document.removeEventListener('visibilitychange', clearFallback);
+        };
+        document.addEventListener('visibilitychange', clearFallback);
     }
 
     // 內建 WebView 降級播放函式 (mpegts.js)
