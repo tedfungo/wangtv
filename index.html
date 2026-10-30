@@ -203,35 +203,30 @@
     // 主入口：透過 Cordova WebIntent 插件直接發射原生 Android Intent
     function playStream(url, name) {
         const statusText = document.getElementById('statusText');
-        statusText.innerText = '正在呼叫原生 VLC 播放器：' + name + '...';
+        statusText.innerText = '正在呼叫 VLC 播放器：' + name + '...';
 
-        if (window.plugins && window.plugins.webintent) {
-            window.plugins.webintent.startActivity({
-                action: 'android.intent.action.VIEW',
-                url: url,
-                type: 'video/*',
-                package: 'org.videolan.vlc',
-                component: {
-                    package: 'org.videolan.vlc',
-                    class: 'org.videolan.vlc.gui.video.VideoPlayerActivity'
-                },
-                extras: {
-                    'title': name
-                }
-            }, function() {
-                console.log('VLC 呼叫成功');
-                statusText.innerText = '已成功切換至 VLC 播放：' + name;
-            }, function(e) {
-                console.error('VLC 呼叫失敗', e);
-                statusText.innerText = 'VLC 呼叫失敗，改用內建 WebView 播放：' + name;
+        const cleanUrl = url.replace(/^https?:\/\//, '');
+        const scheme = url.startsWith('https://') ? 'https' : 'http';
+
+        // 標準 WebView Intent 格式
+        const vlcIntentUrl = `intent://${cleanUrl}#Intent;` +
+            `scheme=${scheme};` +
+            `type=video/*;` +
+            `package=org.videolan.vlc;` +
+            `S.title=${encodeURIComponent(name)};` +
+            `end`;
+
+        // 直接由 WebView 導向，並由我們剛剛注入的原生 Java 程式碼完美攔截並呼叫系統 VLC
+        window.location.href = vlcIntentUrl;
+
+        setTimeout(() => {
+            if (!document.hidden) {
+                statusText.innerText = 'VLC 未響應，切換至內建 WebView 播放：' + name;
                 startNativeWebPlayer(url, name);
-            });
-        } else {
-            console.warn('未偵測到 WebIntent 外掛，切換至內建 WebView 播放');
-            statusText.innerText = '未偵測到原生外掛，改用內建 WebView 播放：' + name;
-            startNativeWebPlayer(url, name);
-        }
+            }
+        }, 2000);
     }
+
 
     // 內建 WebView 降級播放函式 (mpegts.js)
     function startNativeWebPlayer(url, name) {
