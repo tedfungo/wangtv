@@ -1,4 +1,4 @@
-Name: Build Custom Android APK
+name: Build Custom Android APK
 
 on:
   push:
@@ -33,7 +33,7 @@ jobs:
           cd myApp
           cordova platform add android@13.0.0
           
-          # 🚀 關鍵：在這裡直接透過指令把原生 WebIntent 外掛安裝進專案
+          # 安裝原生 WebIntent 外掛
           cordova plugin add cordova-plugin-webintent
           
           sed -i '/<\/widget>/i \    <preference name="Fullscreen" value="true" \/>' config.xml
