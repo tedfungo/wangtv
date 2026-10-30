@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>黃敬波播放器-遙遙領先版</title>
+    <script src="mpegts.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 16px;
+            background-color: #121212;
+            color: #ffffff;
+            overflow-x: hidden;
+        }
+
+        body.fullscreen-active {
+            padding: 0 !important;
+            overflow: hidden !important;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding-bottom: 30px;
+        }
+        
+        .player-box {
+            width: 100%;
+            height: 0;
+            padding-top: 56.25%;
+            background-color: #000;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* 畫質極限優化 CSS */
+        video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain; 
+            background-color: #000;
+            
+            /* 強制 WebView 採用高質量的畫質縮放與渲染演算法 */
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+            
+            /* 強制獨立 GPU 合成圖層，提升大螢幕清晰度與色彩 */
+            -webkit-transform: translate3d(0,0,0);
+            transform: translate3d(0,0,0);
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+        }
+
+        video::-webkit-media-controls,
+        video::-webkit-media-controls-panel,
+        video::-webkit-media-controls-play-button,
+        video::-webkit-media-controls-start-playback-button,
+        video::-webkit-media-controls-enclosure {
+            display: none !important;
+        }
+
+        .player-box.fullscreen-mode {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            padding-top: 0 !important;
+            z-index: 99999 !important;
+            border-radius: 0 !important;
+            margin: 0 !important;
+            background: #000;
+        }
+
+        .btn-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        button.channel-btn {
+            padding: 16px 20px;
+            font-size: 18px;
+            background-color: #1e88e5;
+            color: white;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: left;
+            outline: none;
+            box-sizing: border-box;
+            transition: all 0.15s ease-in-out;
+        }
+
+        button.channel-btn:focus, button.channel-btn:hover {
+            background-color: #1565c0;
+            border-color: #ffeb3b;
+            box-shadow: 0 0 12px rgba(255, 235, 59, 0.5);
+            transform: scale(1.01);
+        }
+
+        .status {
+            margin-top: 15px;
+            font-size: 16px;
+            color: #aaa;
+            margin-bottom: 12px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h4><img src="icon.png" alt="图标" style="width: 40px; height: 40px; vertical-align: middle; margin-right: 8px;"> 黃敬波專線 <-- 有事找他(主謀)</h4>
+    
+    <div class="player-box" id="playerBox">
+        <video id="videoElement" playsinline webkit-playsinline autoplay></video>
+    </div>
+    
+    <div class="status" id="statusText">請選擇頻道播放</div>
+
+    <div class="btn-list">
+        <button class="channel-btn" onclick="playStream('https://pull-mpeg-hs-cny-f5.douyincdn.com/live/wxxw-3KNpWhZ0lSaCroTIRf32AqSYbUwjAwyruHsc0KnmLY9yXhj7rXECcu39xKd5mFXyUsByfemjtbwjXDeC.flv', 'TVB 無線新聞台（地面波）')">TVB 無線新聞台（地面波）</button>
+        <button class="channel-btn" onclick="playStream('https://pull-mpeg-hs-cny-f5.douyincdn.com/live/fc-LMbEPJe5MloHcHvTs0DXowNztiTYo2GRWYiVFay2sAZ2aS0fGq5Kt0DDbOEz7DNrVLal4xICqjotPlDR.flv', '翡翠台（地面波）')">翡翠台（地面波）</button> 
+        <button class="channel-btn" onclick="playStream('https://pull-mpeg-hs-cny-f5.douyincdn.com/live/mz-aPTLe8wju0pBb0EPZiT1wBoCkL566W82rJASM9YJ8gq8NNkXUO3JbqYgHWWbNGxaireDJpvw0d1PaFTU.flv', '明珠台（地面波）')">明珠台（地面波）</button>
+        <button class="channel-btn" onclick="playStream('https://pull-mpeg-hs-cny-f5.douyincdn.com/live/viu-WaLq7QU9ShukSHJr4y4T8i0dBsztO66q6niwBKsG86utDGp8t7H3cr1oB0VrNxkL9efg3iOLGlGf8AfS.flv', 'ViuTV（地面波）')">ViuTV（地面波）</button>
+        <button class="channel-btn" onclick="playStream('https://pull-mpeg-hs-cny-f5.douyincdn.com/live/viu6-8gdcevMEDtjXMHhJXHP7ziGkkBezFqkpFtA72x8msWRDKvudDTC1VXpsTgqVF2DObATSVpEhjQjy9RnI.flv', 'ViuTV 6（地面波）')">ViuTV 6（地面波）</button>
+        <button class="channel-btn" onclick="playStream('https://pull-mpeg-hs-cny-f5.douyincdn.com/live/76-oUvaxF7M45U9SmoSSOg3f66we7BLzbEeFQvxlraqoUVvZk2JQtFWJJAZ9lfo5QROX7APb6DjmR9Cr1EE.flv', 'HOY76（地面波）')">HOY76（地面波）</button>
+        <button class="channel-btn" onclick="playStream('https://pull-mpeg-hs-cny-f5.douyincdn.com/live/77-UEX24z1szkkYW1MgvLHM2x3dzaLhlIRcGClmIhA2Sqwk3zfZ1Ib6qHLeUDAyzFqUGTbZeymM3aDDutDW.flv', 'HOY77（地面波）')">HOY77（地面波）</button>
+        <button class="channel-btn" onclick="playStream('https://pull-mpeg-hs-cny-f5.douyincdn.com/live/78-kyg843KLeAipWh193dzAxvA5AaogPevepNR9XdaDz6BQMR18AW5zTd5uYuaSAsMJxRu9nw8mcMZJyoBG.flv', 'HOY78 新聞台（地面波）')">HOY78 新聞台（地面波）</button>
+    </div>
+</div>
+
+<script>
+    let flvPlayer = null;
+
+    function isTVDevice() {
+        const ua = navigator.userAgent.toLowerCase();
+        return ua.includes('googletv') || ua.includes('androidtv') || ua.includes('smarttv') || ua.includes('large-screen') || ua.includes('tv');
+    }
+
+    function enterFullscreenMode() {
+        const playerBox = document.getElementById('playerBox');
+        playerBox.classList.add('fullscreen-mode');
+        document.body.classList.add('fullscreen-active');
+        if (window.location.hash !== '#fullscreen') {
+            history.pushState({ inFullscreen: true }, '', '#fullscreen');
+        }
+    }
+
+    function exitFullscreenMode() {
+        const playerBox = document.getElementById('playerBox');
+        if (playerBox.classList.contains('fullscreen-mode')) {
+            playerBox.classList.remove('fullscreen-mode');
+            document.body.classList.remove('fullscreen-active');
+            if (window.location.hash === '#fullscreen') {
+                history.back();
+            }
+        }
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if (e.keyCode === 27 || e.keyCode === 4 || e.key === 'Escape' || e.key === 'Backspace') {
+            const playerBox = document.getElementById('playerBox');
+            if (playerBox.classList.contains('fullscreen-mode')) {
+                e.preventDefault();
+                exitFullscreenMode();
+            }
+        }
+    });
+
+    function checkOrientation() {
+        if (flvPlayer && !isTVDevice()) {
+            if (window.innerWidth > window.innerHeight) {
+                enterFullscreenMode();
+            } else {
+                exitFullscreenMode();
+            }
+        }
+    }
+
+    window.addEventListener('resize', checkOrientation);
+    window.addEventListener('orientationchange', () => {
+        setTimeout(checkOrientation, 200);
+    });
+
+    window.addEventListener('popstate', function(event) {
+        exitFullscreenMode();
+    });
+
+    function playStream(url, name) {
+        const videoElement = document.getElementById('videoElement');
+        const statusText = document.getElementById('statusText');
+
+        statusText.innerText = '正在載入：' + name + '...';
+
+        if (flvPlayer) {
+            flvPlayer.pause();
+            flvPlayer.unload();
+            flvPlayer.detachMediaElement();
+            flvPlayer.destroy();
+            flvPlayer = null;
+        }
+
+        videoElement.muted = false;
+        videoElement.volume = 1.0;
+
+        if (window.mpegts && mpegts.getFeatureList().mseLivePlayback) {
+            flvPlayer = mpegts.createPlayer({
+                type: 'flv',
+                isLive: true,
+                hasAudio: true,
+                hasVideo: true,
+                url: url
+            }, {
+                enableStashBuffer: true,            // 開啟 Buffer 緩衝，確保原汁原畫質
+                stashInitialSize: 512 * 1024,      // 512KB 初始緩衝，保證原碼率解碼
+                liveBufferLatencyChasing: false,   // 關閉追幀，避免為降延遲而強制丟失高畫質 Keyframe
+                autoCleanupSourceBuffer: true,
+                enableWorker: false,               // 保持對舊電視盒的相容性
+                lazyLoad: false
+            });
+
+            flvPlayer.attachMediaElement(videoElement);
+            flvPlayer.load();
+            
+            flvPlayer.play().then(() => {
+                statusText.innerText = '正在播放：' + name;
+                
+                if (isTVDevice()) {
+                    enterFullscreenMode();
+                } else {
+                    checkOrientation();
+                }
+
+            }).catch(err => {
+                console.warn('播放受阻，降級靜音播放', err);
+                videoElement.muted = true;
+                flvPlayer.play().catch(e => console.log(e));
+                if (isTVDevice()) {
+                    enterFullscreenMode();
+                }
+            });
+        } else {
+            statusText.innerText = '當前環境不支援 MSE 解碼。';
+        }
+    }
+</script>
+
+</body>
+</html>
