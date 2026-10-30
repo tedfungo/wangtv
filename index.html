@@ -26,11 +26,11 @@
             padding-bottom: 30px;
         }
         
-        /* 超強相容性 16:9 播放視窗容器 */
+        /* 16:9 播放視窗容器（相容舊版 TV） */
         .player-box {
             width: 100%;
             height: 0;
-            padding-top: 56.25%; /* 9 / 16 = 56.25%，極致相容任何 TV WebView 的 16:9 比例 */
+            padding-top: 56.25%; /* 9 / 16 比例 */
             background-color: #000;
             border-radius: 8px;
             margin-bottom: 20px;
@@ -38,7 +38,6 @@
             position: relative;
         }
 
-        /* 讓影片絕對定位填滿 16:9 的容器 */
         video {
             position: absolute;
             top: 0;
@@ -63,14 +62,14 @@
             display: none !important;
         }
 
-        /* 智能全屏模式：解開 16:9 限制，覆蓋全螢幕 */
+        /* 智能全屏模式：佔滿整個螢幕 */
         .player-box.fullscreen-mode {
             position: fixed !important;
             top: 0 !important;
             left: 0 !important;
             width: 100vw !important;
             height: 100vh !important;
-            padding-top: 0 !important; /* 全屏時重置 padding */
+            padding-top: 0 !important;
             z-index: 99999 !important;
             border-radius: 0 !important;
             margin: 0 !important;
@@ -221,7 +220,7 @@
                 enableStashBuffer: false,
                 liveBufferLatencyChasing: true,
                 autoCleanupSourceBuffer: true,
-                enableWorker: true 
+                enableWorker: false // 針對 Android 9 舊電視盒關閉 Worker，解決有聲無畫
             });
 
             flvPlayer.attachMediaElement(videoElement);
