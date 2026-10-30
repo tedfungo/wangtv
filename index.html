@@ -9,6 +9,8 @@
     <meta name="x5-fullscreen" content="true">
     <meta name="x5-page-mode" content="app">
     <title>黃敬波播放器-遙遙領先版</title>
+    <!-- Cordova 原生 Bridge -->
+    <script src="cordova.js"></script>
     <script src="mpegts.min.js"></script>
     <style>
         body {
@@ -198,30 +200,37 @@
         exitFullscreenMode();
     });
 
-    // 主入口：使用與原生 Android App（如 IPTV Pro）相同的精準 Component Intent 喚醒 VLC
+    // 主入口：透過 Cordova WebIntent 插件直接發射原生 Android Intent
     function playStream(url, name) {
         const statusText = document.getElementById('statusText');
-        statusText.innerText = '正在呼叫 VLC 播放器：' + name + '...';
+        statusText.innerText = '正在呼叫原生 VLC 播放器：' + name + '...';
 
-        // 構建精準指定 Activity 的 Android 原生 Intent URI
-        const intentUrl = `intent:${encodeURI(url)}#Intent;` +
-            `action=android.intent.action.VIEW;` +
-            `type=video/*;` +
-            `package=org.videolan.vlc;` +
-            `component=org.videolan.vlc/.gui.video.VideoPlayerActivity;` +
-            `S.title=${encodeURIComponent(name)};` +
-            `end`;
-
-        // 直發系統跳轉
-        window.location.href = intentUrl;
-
-        // 2 秒安全防護：若未成功開啟 VLC 且未離場，自動觸發內建降級播放
-        setTimeout(() => {
-            if (!document.hidden) {
-                statusText.innerText = 'VLC 未響應，切換至內建 WebView 播放：' + name;
+        if (window.plugins && window.plugins.webintent) {
+            window.plugins.webintent.startActivity({
+                action: 'android.intent.action.VIEW',
+                url: url,
+                type: 'video/*',
+                package: 'org.videolan.vlc',
+                component: {
+                    package: 'org.videolan.vlc',
+                    class: 'org.videolan.vlc.gui.video.VideoPlayerActivity'
+                },
+                extras: {
+                    'title': name
+                }
+            }, function() {
+                console.log('VLC 呼叫成功');
+                statusText.innerText = '已成功切換至 VLC 播放：' + name;
+            }, function(e) {
+                console.error('VLC 呼叫失敗', e);
+                statusText.innerText = 'VLC 呼叫失敗，改用內建 WebView 播放：' + name;
                 startNativeWebPlayer(url, name);
-            }
-        }, 2000);
+            });
+        } else {
+            console.warn('未偵測到 WebIntent 外掛，切換至內建 WebView 播放');
+            statusText.innerText = '未偵測到原生外掛，改用內建 WebView 播放：' + name;
+            startNativeWebPlayer(url, name);
+        }
     }
 
     // 內建 WebView 降級播放函式 (mpegts.js)
