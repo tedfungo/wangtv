@@ -27,20 +27,11 @@ jobs:
       - name: Install Cordova
         run: npm install -g cordova
 
-      - name: Create Cordova Project & Inject Native Intent Bridge
+      - name: Create Cordova Project
         run: |
           cordova create myApp com.hjbe.player "黃敬波播放器"
           cd myApp
           cordova platform add android@13.0.0
-          
-          # 🚀 關鍵：自動修改 Android 原生 MainActivity.java，強制讓 WebView 支援 intent:// 攔截
-          MAIN_ACTIVITY="platforms/android/app/src/main/java/com/hjbe/player/MainActivity.java"
-          
-          if [ -f "$MAIN_ACTIVITY" ]; then
-            # 在 onCreate 裡面加入 WebViewClient 覆寫
-            sed -i '/public void onCreate(Bundle savedInstanceState) {/a \        super.init();\n        appView.getEngine().getView().setWebViewClient(new android.webkit.WebViewClient() {\n            @Override\n            public boolean shouldOverrideUrlLoading(android.webkit.WebView view, String url) {\n                if (url.startsWith("intent://") || url.startsWith("intent:")) {\n                    try {\n                        android.content.Intent intent = android.content.Intent.parseUri(url, android.content.Intent.URI_INTENT_SCHEME);\n                        if (intent != null) {\n                            intent.addCategory(android.content.Intent.CATEGORY_BROWSABLE);\n                            intent.setComponent(null);\n                            cordova.getActivity().startActivity(intent);\n                            return true;\n                        }\n                    } catch (Exception e) {\n                        e.printStackTrace();\n                    }\n                }\n                return false;\n            }\n        });' "$MAIN_ACTIVITY"
-          fi
-          
           sed -i '/<\/widget>/i \    <preference name="Fullscreen" value="true" \/>' config.xml
 
       - name: Inject Hardware Acceleration Preference
