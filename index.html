@@ -3,14 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <!-- 強制 Android WebView 啟用最高品質渲染模式 -->
     <meta name="renderer" content="webkit">
     <meta name="force-rendering" content="webkit">
     <meta name="x5-fullscreen" content="true">
     <meta name="x5-page-mode" content="app">
     <title>黃敬波播放器-遙遙領先版</title>
-    <!-- Cordova 原生 Bridge -->
-    <script src="cordova.js"></script>
     <script src="mpegts.min.js"></script>
     <style>
         body {
@@ -53,10 +50,8 @@
             height: 100%;
             object-fit: contain; 
             background-color: #000;
-            
             image-rendering: -webkit-optimize-contrast;
             image-rendering: crisp-edges;
-            
             -webkit-transform: translate3d(0,0,0);
             transform: translate3d(0,0,0);
             -webkit-backface-visibility: hidden;
@@ -181,57 +176,15 @@
         }
     });
 
-    function checkOrientation() {
-        if (flvPlayer && !isTVDevice()) {
-            if (window.innerWidth > window.innerHeight) {
-                enterFullscreenMode();
-            } else {
-                exitFullscreenMode();
-            }
-        }
-    }
-
-    window.addEventListener('resize', checkOrientation);
-    window.addEventListener('orientationchange', () => {
-        setTimeout(checkOrientation, 200);
-    });
-
     window.addEventListener('popstate', function(event) {
         exitFullscreenMode();
     });
 
-    // 主入口：透過 Cordova WebIntent 插件直接發射原生 Android Intent
+    // 點擊直接由內建高效能 mpegts.js 播放
     function playStream(url, name) {
-        const statusText = document.getElementById('statusText');
-        statusText.innerText = '正在呼叫 VLC 播放器：' + name + '...';
-
-        const cleanUrl = url.replace(/^https?:\/\//, '');
-        const scheme = url.startsWith('https://') ? 'https' : 'http';
-
-        // 標準 WebView Intent 格式
-        const vlcIntentUrl = `intent://${cleanUrl}#Intent;` +
-            `scheme=${scheme};` +
-            `type=video/*;` +
-            `package=org.videolan.vlc;` +
-            `S.title=${encodeURIComponent(name)};` +
-            `end`;
-
-        // 直接由 WebView 導向，並由我們剛剛注入的原生 Java 程式碼完美攔截並呼叫系統 VLC
-        window.location.href = vlcIntentUrl;
-
-        setTimeout(() => {
-            if (!document.hidden) {
-                statusText.innerText = 'VLC 未響應，切換至內建 WebView 播放：' + name;
-                startNativeWebPlayer(url, name);
-            }
-        }, 2000);
-    }
-
-
-    // 內建 WebView 降級播放函式 (mpegts.js)
-    function startNativeWebPlayer(url, name) {
         const videoElement = document.getElementById('videoElement');
         const statusText = document.getElementById('statusText');
+        statusText.innerText = '正在載入：' + name + '...';
 
         if (flvPlayer) {
             flvPlayer.pause();
@@ -264,21 +217,13 @@
             flvPlayer.load();
             
             flvPlayer.play().then(() => {
-                statusText.innerText = '正在播放（內建 WebView）：' + name;
-                
-                if (isTVDevice()) {
-                    enterFullscreenMode();
-                } else {
-                    checkOrientation();
-                }
-
+                statusText.innerText = '正在播放：' + name;
+                enterFullscreenMode(); // 自動全螢幕
             }).catch(err => {
-                console.warn('播放受阻，降級靜音播放', err);
+                console.warn('自動播放受阻，嘗試靜音播放', err);
                 videoElement.muted = true;
                 flvPlayer.play().catch(e => console.log(e));
-                if (isTVDevice()) {
-                    enterFullscreenMode();
-                }
+                enterFullscreenMode();
             });
         } else {
             statusText.innerText = '當前環境不支援 MSE 解碼。';
