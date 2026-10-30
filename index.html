@@ -14,87 +14,97 @@
             color: #ffffff;
             overflow-x: hidden;
         }
+
+        /* 全螢幕啟動時，清除 body padding */
+        body.fullscreen-active {
+            padding: 0 !important;
+            overflow: hidden !important;
+        }
+
         .container {
             max-width: 900px;
             margin: 0 auto;
+            padding-bottom: 30px;
         }
         
-        /* 播放器容器：支援普通模式與全屏覆蓋模式 */
+        /* 強制播放視窗維持完美的 16:9 比例 */
         .player-box {
             width: 100%;
-            height: 250px;
+            aspect-ratio: 16 / 9;
             background-color: #000;
             border-radius: 8px;
-            margin-bottom: 16px;
+            margin-bottom: 20px;
             overflow: hidden;
             position: relative;
         }
 
-        /* 關鍵：強制影片高畫質渲染，不失真、不模糊 */
         video {
             width: 100%;
             height: 100%;
-            object-fit: contain; /* 保持比例，避免拉伸模糊 */
+            object-fit: contain; 
             background-color: #000;
+            will-change: transform;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
             transform: translateZ(0);
             -webkit-transform: translateZ(0);
         }
 
-        /* 專為 TV 與手機設計的「智能全屏模式」（完全避開 WebView 阻擋） */
+        /* 隱藏原生媒體控制項 */
+        video::-webkit-media-controls,
+        video::-webkit-media-controls-panel,
+        video::-webkit-media-controls-play-button,
+        video::-webkit-media-controls-start-playback-button,
+        video::-webkit-media-controls-enclosure {
+            display: none !important;
+        }
+
+        /* 智能全屏模式：佔滿整個螢幕 */
         .player-box.fullscreen-mode {
             position: fixed !important;
             top: 0 !important;
             left: 0 !important;
             width: 100vw !important;
             height: 100vh !important;
+            aspect-ratio: auto !important;
             z-index: 99999 !important;
             border-radius: 0 !important;
             margin: 0 !important;
             background: #000;
         }
 
-        /* 返回列表按鈕（全屏時顯示，供電視遙控器退出） */
-        #exitBtn {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            z-index: 100000;
-            background: rgba(0, 0, 0, 0.6);
-            color: white;
-            border: 2px solid #ffeb3b;
-            padding: 8px 16px;
-            font-size: 16px;
-            border-radius: 4px;
-            display: none;
-            cursor: pointer;
-        }
-        .player-box.fullscreen-mode #exitBtn {
-            display: block;
-        }
-
+        /* 選台按鈕列表：加大間距（gap）與邊距，徹底分開按鈕 */
         .btn-list {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 12px; /* 增加按鈕之間的垂直間距 */
+            margin-top: 10px;
         }
-        button {
-            padding: 14px 20px;
+
+        button.channel-btn {
+            padding: 16px 20px;
             font-size: 18px;
             background-color: #1e88e5;
             color: white;
             border: 2px solid transparent;
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
             text-align: left;
             outline: none;
+            box-sizing: border-box;
+            transition: all 0.15s ease-in-out;
         }
-        button:focus, button:hover {
+
+        /* 電視遙控器聚焦及滑鼠懸停效果 */
+        button.channel-btn:focus, button.channel-btn:hover {
             background-color: #1565c0;
             border-color: #ffeb3b;
+            box-shadow: 0 0 12px rgba(255, 235, 59, 0.5);
             transform: scale(1.01);
         }
+
         .status {
-            margin-top: 10px;
+            margin-top: 15px;
             font-size: 16px;
             color: #aaa;
             margin-bottom: 12px;
@@ -106,23 +116,21 @@
 <div class="container">
     <h4><img src="icon.png" alt="图标" style="width: 40px; height: 40px; vertical-align: middle; margin-right: 8px;"> 黃敬波專線 <-- 有事找他(主謀)</h4>
     
-    <!-- 播放視窗容器 -->
     <div class="player-box" id="playerBox">
-        <button id="exitBtn" onclick="exitFullscreenMode()">返回列表 ✕</button>
-        <video id="videoElement" controls playsinline webkit-playsinline autoplay></video>
+        <video id="videoElement" playsinline webkit-playsinline autoplay></video>
     </div>
     
     <div class="status" id="statusText">請選擇頻道播放</div>
 
     <div class="btn-list">
-        <button onclick="playStream('https://pull-mpeg-hs-cny-f5.douyincdn.com/live/wxxw-3KNpWhZ0lSaCroTIRf32AqSYbUwjAwyruHsc0KnmLY9yXhj7rXECcu39xKd5mFXyUsByfemjtbwjXDeC.flv', 'TVB 無線新聞台（地面波）')">TVB 無線新聞台（地面波）</button>
-        <button onclick="playStream('https://pull-mpeg-hs-cny-f5.douyincdn.com/live/fc-LMbEPJe5MloHcHvTs0DXowNztiTYo2GRWYiVFay2sAZ2aS0fGq5Kt0DDbOEz7DNrVLal4xICqjotPlDR.flv', '翡翠台（地面波）')">翡翠台（地面波）</button> 
-        <button onclick="playStream('https://pull-mpeg-hs-cny-f5.douyincdn.com/live/mz-aPTLe8wju0pBb0EPZiT1wBoCkL566W82rJASM9YJ8gq8NNkXUO3JbqYgHWWbNGxaireDJpvw0d1PaFTU.flv', '明珠台（地面波）')">明珠台（地面波）</button>
-        <button onclick="playStream('https://pull-mpeg-hs-cny-f5.douyincdn.com/live/viu-WaLq7QU9ShukSHJr4y4T8i0dBsztO66q6niwBKsG86utDGp8t7H3cr1oB0VrNxkL9efg3iOLGlGf8AfS.flv', 'ViuTV（地面波）')">ViuTV（地面波）</button>
-        <button onclick="playStream('https://pull-mpeg-hs-cny-f5.douyincdn.com/live/viu6-8gdcevMEDtjXMHhJXHP7ziGkkBezFqkpFtA72x8msWRDKvudDTC1VXpsTgqVF2DObATSVpEhjQjy9RnI.flv', 'ViuTV 6（地面波）')">ViuTV 6（地面波）</button>
-        <button onclick="playStream('https://pull-mpeg-hs-cny-f5.douyincdn.com/live/76-oUvaxF7M45U9SmoSSOg3f66we7BLzbEeFQvxlraqoUVvZk2JQtFWJJAZ9lfo5QROX7APb6DjmR9Cr1EE.flv', 'HOY76（地面波）')">HOY76（地面波）</button>
-        <button onclick="playStream('https://pull-mpeg-hs-cny-f5.douyincdn.com/live/77-UEX24z1szkkYW1MgvLHM2x3dzaLhlIRcGClmIhA2Sqwk3zfZ1Ib6qHLeUDAyzFqUGTbZeymM3aDDutDW.flv', 'HOY77（地面波）')">HOY77（地面波）</button>
-        <button onclick="playStream('https://pull-mpeg-hs-cny-f5.douyincdn.com/live/78-kyg843KLeAipWh193dzAxvA5AaogPevepNR9XdaDz6BQMR18AW5zTd5uYuaSAsMJxRu9nw8mcMZJyoBG.flv', 'HOY78 新聞台（地面波）')">HOY78 新聞台（地面波）</button>
+        <button class="channel-btn" onclick="playStream('https://pull-mpeg-hs-cny-f5.douyincdn.com/live/wxxw-3KNpWhZ0lSaCroTIRf32AqSYbUwjAwyruHsc0KnmLY9yXhj7rXECcu39xKd5mFXyUsByfemjtbwjXDeC.flv', 'TVB 無線新聞台（地面波）')">TVB 無線新聞台（地面波）</button>
+        <button class="channel-btn" onclick="playStream('https://pull-mpeg-hs-cny-f5.douyincdn.com/live/fc-LMbEPJe5MloHcHvTs0DXowNztiTYo2GRWYiVFay2sAZ2aS0fGq5Kt0DDbOEz7DNrVLal4xICqjotPlDR.flv', '翡翠台（地面波）')">翡翠台（地面波）</button> 
+        <button class="channel-btn" onclick="playStream('https://pull-mpeg-hs-cny-f5.douyincdn.com/live/mz-aPTLe8wju0pBb0EPZiT1wBoCkL566W82rJASM9YJ8gq8NNkXUO3JbqYgHWWbNGxaireDJpvw0d1PaFTU.flv', '明珠台（地面波）')">明珠台（地面波）</button>
+        <button class="channel-btn" onclick="playStream('https://pull-mpeg-hs-cny-f5.douyincdn.com/live/viu-WaLq7QU9ShukSHJr4y4T8i0dBsztO66q6niwBKsG86utDGp8t7H3cr1oB0VrNxkL9efg3iOLGlGf8AfS.flv', 'ViuTV（地面波）')">ViuTV（地面波）</button>
+        <button class="channel-btn" onclick="playStream('https://pull-mpeg-hs-cny-f5.douyincdn.com/live/viu6-8gdcevMEDtjXMHhJXHP7ziGkkBezFqkpFtA72x8msWRDKvudDTC1VXpsTgqVF2DObATSVpEhjQjy9RnI.flv', 'ViuTV 6（地面波）')">ViuTV 6（地面波）</button>
+        <button class="channel-btn" onclick="playStream('https://pull-mpeg-hs-cny-f5.douyincdn.com/live/76-oUvaxF7M45U9SmoSSOg3f66we7BLzbEeFQvxlraqoUVvZk2JQtFWJJAZ9lfo5QROX7APb6DjmR9Cr1EE.flv', 'HOY76（地面波）')">HOY76（地面波）</button>
+        <button class="channel-btn" onclick="playStream('https://pull-mpeg-hs-cny-f5.douyincdn.com/live/77-UEX24z1szkkYW1MgvLHM2x3dzaLhlIRcGClmIhA2Sqwk3zfZ1Ib6qHLeUDAyzFqUGTbZeymM3aDDutDW.flv', 'HOY77（地面波）')">HOY77（地面波）</button>
+        <button class="channel-btn" onclick="playStream('https://pull-mpeg-hs-cny-f5.douyincdn.com/live/78-kyg843KLeAipWh193dzAxvA5AaogPevepNR9XdaDz6BQMR18AW5zTd5uYuaSAsMJxRu9nw8mcMZJyoBG.flv', 'HOY78 新聞台（地面波）')">HOY78 新聞台（地面波）</button>
     </div>
 </div>
 
@@ -134,33 +142,59 @@
         return ua.includes('googletv') || ua.includes('androidtv') || ua.includes('smarttv') || ua.includes('large-screen') || ua.includes('tv');
     }
 
-    // 進入智能全屏模式
     function enterFullscreenMode() {
         const playerBox = document.getElementById('playerBox');
         playerBox.classList.add('fullscreen-mode');
+        document.body.classList.add('fullscreen-active');
         if (window.location.hash !== '#fullscreen') {
             history.pushState({ inFullscreen: true }, '', '#fullscreen');
         }
     }
 
-    // 退出智能全屏模式
     function exitFullscreenMode() {
-        const playerBox = document.getElementById('playerBox');
-        playerBox.classList.remove('fullscreen-mode');
-        if (window.location.hash === '#fullscreen') {
-            history.back();
-        }
-    }
-
-    // 監聽返回鍵：如果在全屏下按返回，則退出全屏而不跳回首頁
-    window.addEventListener('popstate', function(event) {
         const playerBox = document.getElementById('playerBox');
         if (playerBox.classList.contains('fullscreen-mode')) {
             playerBox.classList.remove('fullscreen-mode');
+            document.body.classList.remove('fullscreen-active');
+            if (window.location.hash === '#fullscreen') {
+                history.back();
+            }
+        }
+    }
+
+    // 監聽鍵盤與遙控器返回鍵（Esc, Android Back, Backspace）
+    window.addEventListener('keydown', (e) => {
+        if (e.keyCode === 27 || e.keyCode === 4 || e.key === 'Escape' || e.key === 'Backspace') {
+            const playerBox = document.getElementById('playerBox');
+            if (playerBox.classList.contains('fullscreen-mode')) {
+                e.preventDefault();
+                exitFullscreenMode();
+            }
         }
     });
 
-    // 播放串流
+    // 僅在播放中且手機打橫時自動全螢幕（不在開啟 App 時自動全屏）
+    function checkOrientation() {
+        const playerBox = document.getElementById('playerBox');
+        // 只有正在播放頻道時，手機打橫才切換全螢幕
+        if (flvPlayer && !isTVDevice()) {
+            if (window.innerWidth > window.innerHeight) {
+                enterFullscreenMode();
+            } else {
+                exitFullscreenMode();
+            }
+        }
+    }
+
+    window.addEventListener('resize', checkOrientation);
+    window.addEventListener('orientationchange', () => {
+        setTimeout(checkOrientation, 200);
+    });
+
+    window.addEventListener('popstate', function(event) {
+        exitFullscreenMode();
+    });
+
     function playStream(url, name) {
         const videoElement = document.getElementById('videoElement');
         const statusText = document.getElementById('statusText');
@@ -188,7 +222,8 @@
             }, {
                 enableStashBuffer: false,
                 liveBufferLatencyChasing: true,
-                autoCleanupSourceBuffer: true
+                autoCleanupSourceBuffer: true,
+                enableWorker: true 
             });
 
             flvPlayer.attachMediaElement(videoElement);
@@ -197,14 +232,17 @@
             flvPlayer.play().then(() => {
                 statusText.innerText = '正在播放：' + name;
                 
-                // 如果是電視設備，點擊後立刻強制進入全屏覆蓋
+                // 用戶主動選台點擊後，TV 端與手機橫屏才進入全螢幕
                 if (isTVDevice()) {
                     enterFullscreenMode();
+                } else {
+                    checkOrientation();
                 }
+
             }).catch(err => {
                 console.warn('播放受阻，降級靜音播放', err);
                 videoElement.muted = true;
-                flvPlayer.play();
+                flvPlayer.play().catch(e => console.log(e));
                 if (isTVDevice()) {
                     enterFullscreenMode();
                 }
