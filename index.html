@@ -26,11 +26,11 @@
             padding-bottom: 30px;
         }
         
-        /* 16:9 播放視窗容器（相容舊版 TV） */
+        /* 16:9 播放視窗容器 */
         .player-box {
             width: 100%;
             height: 0;
-            padding-top: 56.25%; /* 9 / 16 比例 */
+            padding-top: 56.25%;
             background-color: #000;
             border-radius: 8px;
             margin-bottom: 20px;
@@ -38,6 +38,7 @@
             position: relative;
         }
 
+        /* 移除容易造成舊電視盒 GPU 黑屏的 translateZ 硬體加速 */
         video {
             position: absolute;
             top: 0;
@@ -46,11 +47,6 @@
             height: 100%;
             object-fit: contain; 
             background-color: #000;
-            will-change: transform;
-            -webkit-backface-visibility: hidden;
-            backface-visibility: hidden;
-            transform: translateZ(0);
-            -webkit-transform: translateZ(0);
         }
 
         /* 隱藏原生控制條 */
@@ -62,7 +58,7 @@
             display: none !important;
         }
 
-        /* 智能全屏模式：佔滿整個螢幕 */
+        /* 全屏模式 */
         .player-box.fullscreen-mode {
             position: fixed !important;
             top: 0 !important;
@@ -210,6 +206,7 @@
         videoElement.volume = 1.0;
 
         if (window.mpegts && mpegts.getFeatureList().mseLivePlayback) {
+            // 針對舊電視盒 WebView 的參數適配
             flvPlayer = mpegts.createPlayer({
                 type: 'flv',
                 isLive: true,
@@ -220,7 +217,9 @@
                 enableStashBuffer: false,
                 liveBufferLatencyChasing: true,
                 autoCleanupSourceBuffer: true,
-                enableWorker: false // 針對 Android 9 舊電視盒關閉 Worker，解決有聲無畫
+                enableWorker: false,        // 關閉 Worker，由主線程直接繪製
+                lazyLoad: false,
+                fixAudioTimestampGap: false
             });
 
             flvPlayer.attachMediaElement(videoElement);
@@ -229,6 +228,11 @@
             flvPlayer.play().then(() => {
                 statusText.innerText = '正在播放：' + name;
                 
+                // 強制觸發一次渲染重繪（解決部分 Android 9 繪製層凍結問題）
+                videoElement.style.display = 'none';
+                videoElement.offsetHeight; // 強制重繪
+                videoElement.style.display = 'block';
+
                 if (isTVDevice()) {
                     enterFullscreenMode();
                 } else {
