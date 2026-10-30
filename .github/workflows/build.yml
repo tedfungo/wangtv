@@ -1,0 +1,59 @@
+name: Build Custom Android APK
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Install Cordova
+        run: npm install -g cordova
+
+      - name: Create Cordova Project
+        run: |
+          cordova create myApp com.hjbe.player "黃敬波播放器"
+          cd myApp
+          cordova platform add android@13.0.0
+
+      - name: Copy Web Files and Icon
+        run: |
+          rm -rf myApp/www/*
+          
+          # 複製核心網頁檔案
+          cp index.html myApp/www/
+          cp mpegts.min.js myApp/www/
+          
+          # 僅保留 Icon 應用程式圖示
+          if [ -f icon.png ]; then
+            cp icon.png myApp/www/icon.png
+            sed -i '/<\/widget>/i \    <icon src="www/icon.png" />' myApp/config.xml
+          fi
+
+      - name: Build Android APK
+        run: |
+          cd myApp
+          cordova build android --debug
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: 黃敬波播放器-遙遙領先版
+          path: myApp/platforms/android/app/build/outputs/apk/debug/app-debug.apk
