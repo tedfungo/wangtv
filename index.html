@@ -198,52 +198,30 @@
         exitFullscreenMode();
     });
 
-    // 主入口：透過 iframe 觸發 VLC 喚醒，並以 document.hidden 確保準確降級
+    // 主入口：使用與原生 Android App（如 IPTV Pro）相同的精準 Component Intent 喚醒 VLC
     function playStream(url, name) {
         const statusText = document.getElementById('statusText');
         statusText.innerText = '正在呼叫 VLC 播放器：' + name + '...';
 
-        const cleanUrl = url.replace(/^https?:\/\//, '');
-        const scheme = url.startsWith('https://') ? 'https' : 'http';
-
-        const vlcIntentUrl = `intent://${cleanUrl}#Intent;` +
-            `scheme=${scheme};` +
+        // 構建精準指定 Activity 的 Android 原生 Intent URI
+        const intentUrl = `intent:${encodeURI(url)}#Intent;` +
+            `action=android.intent.action.VIEW;` +
             `type=video/*;` +
             `package=org.videolan.vlc;` +
+            `component=org.videolan.vlc/.gui.video.VideoPlayerActivity;` +
             `S.title=${encodeURIComponent(name)};` +
             `end`;
 
-        let iframe = document.getElementById('intent-iframe');
-        if (!iframe) {
-            iframe = document.createElement('iframe');
-            iframe.id = 'intent-iframe';
-            iframe.style.display = 'none';
-            document.body.appendChild(iframe);
-        }
+        // 直發系統跳轉
+        window.location.href = intentUrl;
 
-        try {
-            iframe.src = vlcIntentUrl;
-            statusText.innerText = '已啟動 VLC 播放：' + name;
-        } catch (e) {
-            console.log('Intent 觸發例外，走降級通道', e);
-            startNativeWebPlayer(url, name);
-            return;
-        }
-
-        // 1.5 秒安全等待：若頁面未被切入背景（代表 VLC 未成功拉起或未安裝），則自動降級走內建 WebView
-        let fallbackTimer = setTimeout(() => {
+        // 2 秒安全防護：若未成功開啟 VLC 且未離場，自動觸發內建降級播放
+        setTimeout(() => {
             if (!document.hidden) {
-                console.warn('VLC 未響應，執行內建 WebView 降級');
                 statusText.innerText = 'VLC 未響應，切換至內建 WebView 播放：' + name;
                 startNativeWebPlayer(url, name);
             }
-        }, 1500);
-
-        const clearFallback = () => {
-            clearTimeout(fallbackTimer);
-            document.removeEventListener('visibilitychange', clearFallback);
-        };
-        document.addEventListener('visibilitychange', clearFallback);
+        }, 2000);
     }
 
     // 內建 WebView 降級播放函式 (mpegts.js)
