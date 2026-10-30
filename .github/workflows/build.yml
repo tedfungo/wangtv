@@ -34,6 +34,13 @@ jobs:
           cordova platform add android@13.0.0
           sed -i '/<\/widget>/i \    <preference name="Fullscreen" value="true" \/>' config.xml
 
+      - name: Inject Hardware Acceleration Preference
+        run: |
+          if [ -f config.xml ]; then
+            sed -i '/<\/widget>/i \    <preference name="HardwareAcceleration" value="true" />' config.xml
+          fi
+
+
       - name: Copy Web Files and Icon
         run: |
           rm -rf myApp/www/*
