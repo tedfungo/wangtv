@@ -27,11 +27,15 @@ jobs:
       - name: Install Cordova
         run: npm install -g cordova
 
-      - name: Create Cordova Project
+      - name: Create Cordova Project & Add WebIntent Plugin
         run: |
           cordova create myApp com.hjbe.player "黃敬波播放器"
           cd myApp
           cordova platform add android@13.0.0
+          
+          # 🚀 關鍵：安裝 WebIntent 原生外掛
+          cordova plugin add cordova-plugin-webintent
+          
           sed -i '/<\/widget>/i \    <preference name="Fullscreen" value="true" \/>' config.xml
 
       - name: Inject Hardware Acceleration Preference
