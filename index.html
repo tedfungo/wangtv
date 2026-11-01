@@ -7,7 +7,7 @@
     <meta name="force-rendering" content="webkit">
     <meta name="x5-fullscreen" content="true">
     <meta name="x5-page-mode" content="app">
-    <title>黃敬波播放器-同你死過版</title>
+    <title>黃敬波播放器-雙模智能版</title>
     <script src="cordova.js"></script>
     <script src="mpegts.min.js"></script>
     <style>
@@ -118,7 +118,7 @@
 
 <div class="container">
     <h4><img src="icon.png" alt="圖標" style="width: 36px; height: 36px; vertical-align: middle; margin-right: 8px;"> 黃敬波專線 <-- 有事找他(主謀)</h4>
-    <div class="status" id="statusText">正在載入最新頻道選單...</div>
+    <div class="status" id="statusText">正在從伺服器同步最新頻道清單...</div>
 
     <!-- 內建播放器（降級備援用） -->
     <div class="player-box" id="playerBox">
@@ -131,60 +131,58 @@
 
 <script>
     let flvPlayer = null;
-    const DATA_URL = 'http://n6000.lithoconcepts.com:7222/data.txt'; // 替換為你的伺服器檔案網址
+    const DATA_JS_URL = 'http://n6000.lithoconcepts.com:7222/data.js'; // 請改成你的伺服器遠端 JS 檔網址
 
-    // 頁面載入後自動讀取 data.txt
+    // 頁面載入後透過動態 script 標籤載入遠端清單（完美繞過 CORS 與沙盒限制）
     window.addEventListener('DOMContentLoaded', () => {
-        loadChannels();
+        loadRemoteData();
     });
 
-    // 讀取並解析 data.txt 生成按鈕
-    function loadChannels() {
+    function loadRemoteData() {
+        const script = document.createElement('script');
+        script.src = DATA_JS_URL + '?t=' + new Date().getTime(); // 加上時間戳防快取
+        
+        script.onerror = () => {
+            document.getElementById('statusText').innerText = '遠端清單同步失敗，請檢查網路連線';
+        };
+
+        document.head.appendChild(script);
+    }
+
+    // 當遠端 data.js 載入成功時會自動執行這個函式
+    function loadChannelData(text) {
         const statusText = document.getElementById('statusText');
         const btnList = document.getElementById('btnList');
+        btnList.innerHTML = ''; // 清空舊按鈕
 
-        // 加 timestamp 避免瀏覽器快取舊資料
-        fetch(DATA_URL + '?t=' + new Date().getTime())
-            .then(response => {
-                if (!response.ok) throw new Error('無法讀取頻道清單');
-                return response.text();
-            })
-            .then(text => {
-                btnList.innerHTML = ''; // 清空列表
-                const lines = text.split('\n');
-                let count = 0;
+        const lines = text.trim().split('\n');
+        let count = 0;
 
-                lines.forEach(line => {
-                    const trimmed = line.trim();
-                    if (!trimmed) return;
+        lines.forEach(line => {
+            const trimmed = line.trim();
+            if (!trimmed) return;
 
-                    const parts = trimmed.split(';');
-                    if (parts.length >= 2) {
-                        const name = parts[0].trim();
-                        const url = parts.slice(1).join(';').trim(); // 防止網址內含有分號
+            const parts = trimmed.split(';');
+            if (parts.length >= 2) {
+                const name = parts[0].trim();
+                const url = parts.slice(1).join(';').trim(); // 防止網址內包含分號
 
-                        const btn = document.createElement('button');
-                        btn.className = 'channel-btn';
-                        btn.innerText = '📺 ' + name;
-                        btn.onclick = () => playStream(url, name);
-                        btnList.appendChild(btn);
-                        count++;
-                    }
-                });
+                const btn = document.createElement('button');
+                btn.className = 'channel-btn';
+                btn.innerText = '📺 ' + name;
+                btn.onclick = () => playStream(url, name);
+                btnList.appendChild(btn);
+                count++;
+            }
+        });
 
-                if (count > 0) {
-                    statusText.innerText = '請選擇頻道：優先拉起 VLC，未響應則自動切換內建播放';
-                    // 第一個按鈕取得焦點方便遙控器操作
-                    const firstBtn = btnList.querySelector('.channel-btn');
-                    if (firstBtn) firstBtn.focus();
-                } else {
-                    statusText.innerText = '頻道清單格式錯誤或無有效頻道';
-                }
-            })
-            .catch(err => {
-                console.error(err);
-                statusText.innerText = '載入頻道失敗，請檢查網路或伺服器連線';
-            });
+        if (count > 0) {
+            statusText.innerText = '請選擇頻道：優先拉起 VLC，未響應則自動切換內建播放';
+            const firstBtn = btnList.querySelector('.channel-btn');
+            if (firstBtn) firstBtn.focus();
+        } else {
+            statusText.innerText = '頻道清單內容為空';
+        }
     }
 
     function playStream(url, name) {
