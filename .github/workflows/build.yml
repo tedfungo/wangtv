@@ -55,14 +55,14 @@ jobs:
             sed -i '/<\/widget>/i \    <icon src="www/icon.png" />' myApp/config.xml
           fi
 
-      - name: Allow HTTP Cleartext Traffic for Android 9+
-        run: |
-          find . -name "AndroidManifest.xml" -exec sed -i 's/<application/<application android:usesCleartextTraffic="true"/g' {} +
-
       - name: Build Android APK
         run: |
-          #  cd myApp
+          cd myApp
           cordova platform add android@latest
+          
+          # 🚀 關鍵修正：在專案建好、平台加入後，直接修改內部的 AndroidManifest.xml
+          sed -i 's/<application/<application android:usesCleartextTraffic="true"/g' platforms/android/app/src/main/AndroidManifest.xml
+          
           cordova build android --debug
 
       - name: Upload APK Artifact
