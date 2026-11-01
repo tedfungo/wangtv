@@ -139,11 +139,26 @@
     });
 
     function loadRemoteData() {
+        const statusText = document.getElementById('statusText');
+        statusText.innerText = '正在從伺服器同步最新頻道清單...';
+
         const script = document.createElement('script');
-        script.src = DATA_JS_URL + '?t=' + new Date().getTime(); // 加上時間戳防快取
+        // 加上時間戳防快取
+        script.src = DATA_JS_URL + '?t=' + new Date().getTime(); 
         
-        script.onerror = () => {
-            document.getElementById('statusText').innerText = '遠端清單同步失敗，請檢查網路連線';
+        // 5秒超時保護
+        const timer = setTimeout(() => {
+            statusText.innerText = '同步超時：請檢查電視盒與 Ubuntu 伺服器網路連線';
+        }, 5000);
+
+        script.onload = () => {
+            clearTimeout(timer);
+        };
+
+        script.onerror = (err) => {
+            clearTimeout(timer);
+            statusText.innerText = '遠端清單同步失敗：Android 系統攔截了非加密 HTTP 請求';
+            console.error('Script load error:', err);
         };
 
         document.head.appendChild(script);
