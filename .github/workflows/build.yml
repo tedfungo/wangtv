@@ -33,19 +33,19 @@ jobs:
           cd myApp
           cordova platform add android@13.0.0
           
-          # 🚀 關鍵：安裝 WebIntent 原生外掛
+          # 🚀 安裝 WebIntent 原生外掛
           cordova plugin add cordova-plugin-webintent
           
-          # 1. 設定全螢幕與硬體加速
+          # 1. 設定全螢幕、硬體加速與白名單
           sed -i '/<\/widget>/i \    <preference name="Fullscreen" value="true" \/>' config.xml
           sed -i '/<\/widget>/i \    <preference name="HardwareAcceleration" value="true" \/>' config.xml
-          
-          # 2. 徹底解封 Android 明文 HTTP 請求與白名單限制
           sed -i '/<\/widget>/i \    <access origin="*" \/>' config.xml
           sed -i '/<\/widget>/i \    <allow-navigation href="*" \/>' config.xml
           sed -i '/<\/widget>/i \    <allow-intent href="http:\/\/*\/*" \/>' config.xml
           sed -i '/<\/widget>/i \    <preference name="Scheme" value="http" \/>' config.xml
-          sed -i '/<\/widget>/i \    <edit-config file="app\/src\/main\/AndroidManifest.xml" mode="merge" target="\/manifest\/application">\n        <application android:usesCleartextTraffic="true" \/>\n    <\/edit-config>' config.xml
+
+          # 2. 直接在這裡安全注入明文 HTTP 權限（避開 config.xml 解析錯誤）
+          sed -i 's/<application/<application android:usesCleartextTraffic="true"/g' platforms/android/app/src/main/AndroidManifest.xml
       
       - name: Inject Hardware Acceleration Preference
         run: |
