@@ -37,7 +37,7 @@
             color: #ffeb3b;
         }
 
-        /* 內建播放器容器（平時隱藏，降級用 WebView 播放時彈出全螢幕） */
+        /* 內建播放器容器（平時隱藏，播放時彈出全螢幕） */
         .player-box {
             display: none;
             width: 100%;
@@ -120,9 +120,9 @@
     <h4><img src="icon.png" alt="圖標" style="width: 36px; height: 36px; vertical-align: middle; margin-right: 8px;"> 黃敬波專線 <-- 有事找他(主謀)</h4>
     <div class="status" id="statusText">正在從伺服器同步最新頻道清單...</div>
 
-    <!-- 內建播放器（降級備援用） -->
+    <!-- 內建播放器 -->
     <div class="player-box" id="playerBox">
-        <video id="videoElement" playsinline webkit-playsinline autoplay></video>
+        <video id="videoElement" playsinline webkit-playsinline autoplay controls></video>
     </div>
 
     <!-- 頻道按鈕動態生成區域 -->
@@ -131,9 +131,8 @@
 
 <script>
     let flvPlayer = null;
-    const DATA_JS_URL = 'http://n6000.lithoconcepts.com:7222/data.js'; // 請改成你的伺服器遠端 JS 檔網址
+    const DATA_JS_URL = 'http://n6000.lithoconcepts.com:7222/data.js';
 
-    // 頁面載入後透過動態 script 標籤載入遠端清單（完美繞過 CORS 與沙盒限制）
     window.addEventListener('DOMContentLoaded', () => {
         loadRemoteData();
     });
@@ -143,32 +142,26 @@
         statusText.innerText = '正在從伺服器同步最新頻道清單...';
 
         const script = document.createElement('script');
-        // 加上時間戳防快取
         script.src = DATA_JS_URL + '?t=' + new Date().getTime(); 
         
-        // 5秒超時保護
         const timer = setTimeout(() => {
-            statusText.innerText = '同步超時：請檢查電視盒與 Ubuntu 伺服器網路連線';
+            statusText.innerText = '同步超時：請檢查網路連線';
         }, 5000);
 
-        script.onload = () => {
-            clearTimeout(timer);
-        };
-
+        script.onload = () => clearTimeout(timer);
         script.onerror = (err) => {
             clearTimeout(timer);
-            statusText.innerText = '遠端清單同步失敗：Android 系統攔截了非加密 HTTP 請求';
+            statusText.innerText = '遠端清單同步失敗：網路請求受阻';
             console.error('Script load error:', err);
         };
 
         document.head.appendChild(script);
     }
 
-    // 當遠端 data.js 載入成功時會自動執行這個函式
     function loadChannelData(text) {
         const statusText = document.getElementById('statusText');
         const btnList = document.getElementById('btnList');
-        btnList.innerHTML = ''; // 清空舊按鈕
+        btnList.innerHTML = '';
 
         const lines = text.trim().split('\n');
         let count = 0;
@@ -180,7 +173,7 @@
             const parts = trimmed.split(';');
             if (parts.length >= 2) {
                 const name = parts[0].trim();
-                const url = parts.slice(1).join(';').trim(); // 防止網址內包含分號
+                const url = parts.slice(1).join(';').trim();
 
                 const btn = document.createElement('button');
                 btn.className = 'channel-btn';
@@ -192,7 +185,7 @@
         });
 
         if (count > 0) {
-            statusText.innerText = '請選擇頻道：優先拉起 VLC，未響應則自動切換內建播放';
+            statusText.innerText = '請選擇頻道';
             const firstBtn = btnList.querySelector('.channel-btn');
             if (firstBtn) firstBtn.focus();
         } else {
@@ -200,13 +193,27 @@
         }
     }
 
+    // 判斷當前裝置是否為 Android TV / 電視盒
+    function isAndroidTV() {
+        const ua = navigator.userAgent;
+        // 常見電視盒 UA 特徵或大螢幕
+        return /Android/.test(ua) && (/TV|Leanback|GoogleTV|Amlogic|Rockchip/i.test(ua) || window.innerWidth > 1024);
+    }
+
     function playStream(url, name) {
         const statusText = document.getElementById('statusText');
-        statusText.innerText = '正在嘗試呼叫 VLC 播放：' + name + '...';
 
+        // 如果是手機或平板：直接走內建 WebView 播放，不呼叫 VLC
+        if (!isAndroidTV()) {
+            statusText.innerText = '正在以內建播放器播放：' + name;
+            startNativeWebPlayer(url, name);
+            return;
+        }
+
+        // 以下維持電視盒專屬的雙模智能邏輯（有 VLC 用 VLC，沒 VLC 降級內建）
+        statusText.innerText = '正在嘗試呼叫 VLC 播放：' + name + '...';
         let vlcLaunched = false;
 
-        // 1. 優先嘗試透過 WebIntent 呼叫 VLC
         if (window.plugins && window.plugins.webintent) {
             window.plugins.webintent.startActivity({
                 action: 'android.intent.action.VIEW',
@@ -228,16 +235,15 @@
             });
         }
 
-        // 2. 智慧防護網：1.2秒內若 App 沒進入背景（代表 VLC 沒被成功拉起），自動無縫降級用內建 WebView 播放！
         setTimeout(() => {
             if (!vlcLaunched && !document.hidden) {
-                statusText.innerText = 'VLC 未回應，已自動切換內建高清播放：' + name;
+                statusText.innerText = '未偵測到 VLC，自動切換電視內建播放：' + name;
                 startNativeWebPlayer(url, name);
             }
         }, 1200);
     }
 
-    // 內建 WebView 降級播放函式
+    // 內建 WebView / mpegts 播放函式
     function startNativeWebPlayer(url, name) {
         const playerBox = document.getElementById('playerBox');
         const videoElement = document.getElementById('videoElement');
@@ -280,10 +286,17 @@
                 videoElement.muted = true;
                 flvPlayer.play().catch(e => console.log(e));
             });
+        } else {
+            // 備用原生 HTML5 播放
+            videoElement.src = url;
+            videoElement.play().catch(e => {
+                videoElement.muted = true;
+                videoElement.play();
+            });
         }
     }
 
-    // 遙控器返回鍵 / Esc 退出內建全屏
+    // 返回鍵 / Esc 退出內建全屏
     window.addEventListener('keydown', (e) => {
         if (e.keyCode === 27 || e.keyCode === 4 || e.key === 'Escape' || e.key === 'Backspace') {
             const playerBox = document.getElementById('playerBox');
@@ -296,6 +309,10 @@
                     flvPlayer.destroy();
                     flvPlayer = null;
                 }
+                const videoElement = document.getElementById('videoElement');
+                videoElement.pause();
+                videoElement.src = "";
+
                 playerBox.classList.remove('fullscreen-mode');
                 document.body.classList.remove('fullscreen-active');
                 document.getElementById('statusText').innerText = '已退出播放，請選擇頻道';
