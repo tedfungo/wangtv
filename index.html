@@ -14,7 +14,7 @@
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             margin: 0;
-            padding: 24px;
+            padding: 16px;
             background-color: #121212;
             color: #ffffff;
             overflow-x: hidden;
@@ -32,25 +32,27 @@
         }
 
         h4 {
-            margin-bottom: 20px;
-            font-size: 22px;
+            margin: 0 0 12px 0;
+            font-size: 20px;
             color: #ffeb3b;
         }
 
-        /* 內建播放器容器（平時隱藏，播放時彈出全螢幕） */
+        /* 上方常駐播放視窗（對應截圖排版） */
         .player-box {
-            display: none;
+            display: block;
             width: 100%;
             height: 0;
-            padding-top: 56.25%;
+            padding-top: 56.25%; /* 16:9 比例 */
             background-color: #000;
             border-radius: 8px;
-            margin-bottom: 20px;
+            margin-bottom: 12px;
             position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
         }
 
+        /* 手機橫屏或自動全螢幕模式 */
         .player-box.fullscreen-mode {
-            display: block !important;
             position: fixed !important;
             top: 0 !important;
             left: 0 !important;
@@ -70,30 +72,37 @@
             height: 100%;
             object-fit: contain;
             background-color: #000;
-            image-rendering: -webkit-optimize-contrast;
-            image-rendering: crisp-edges;
-            -webkit-transform: translate3d(0,0,0);
-            transform: translate3d(0,0,0);
         }
 
         video::-webkit-media-controls {
             display: none !important;
         }
 
+        .status {
+            font-size: 14px;
+            color: #aaa;
+            margin-bottom: 12px;
+        }
+
         .btn-list {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 16px;
-            margin-top: 20px;
+            grid-template-columns: repeat(1, 1fr);
+            gap: 12px;
+        }
+
+        @media (min-width: 600px) {
+            .btn-list {
+                grid-template-columns: repeat(2, 1fr);
+            }
         }
 
         button.channel-btn {
-            padding: 20px;
-            font-size: 18px;
+            padding: 16px;
+            font-size: 16px;
             background-color: #1e1e1e;
             color: white;
             border: 2px solid #333;
-            border-radius: 10px;
+            border-radius: 8px;
             cursor: pointer;
             text-align: left;
             outline: none;
@@ -103,27 +112,22 @@
         button.channel-btn:focus, button.channel-btn:hover {
             background-color: #1565c0;
             border-color: #ffeb3b;
-            box-shadow: 0 0 16px rgba(255, 235, 59, 0.6);
-            transform: scale(1.02);
-        }
-
-        .status {
-            font-size: 16px;
-            color: #aaa;
-            margin-bottom: 16px;
+            box-shadow: 0 0 12px rgba(255, 235, 59, 0.6);
+            transform: scale(1.01);
         }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h4><img src="icon.png" alt="圖標" style="width: 36px; height: 36px; vertical-align: middle; margin-right: 8px;"> 黃敬波專線 <-- 有事找他(主謀)</h4>
-    <div class="status" id="statusText">正在從伺服器同步最新頻道清單...</div>
-
-    <!-- 內建播放器 -->
+<div class="container" id="mainContainer">
+    <h4><img src="icon.png" alt="圖標" style="width: 30px; height: 30px; vertical-align: middle; margin-right: 6px;"> 黃敬波專線 <-- 有事找他(主謀)</h4>
+    
+    <!-- 上方常駐播放視窗 -->
     <div class="player-box" id="playerBox">
-        <video id="videoElement" playsinline webkit-playsinline autoplay controls></video>
+        <video id="videoElement" playsinline webkit-playsinline autoplay></video>
     </div>
+
+    <div class="status" id="statusText">正在從伺服器同步最新頻道清單...</div>
 
     <!-- 頻道按鈕動態生成區域 -->
     <div class="btn-list" id="btnList"></div>
@@ -131,11 +135,30 @@
 
 <script>
     let flvPlayer = null;
+    let currentUrl = '';
+    let currentName = '';
     const DATA_JS_URL = 'http://n6000.lithoconcepts.com:7222/data.js';
 
     window.addEventListener('DOMContentLoaded', () => {
         loadRemoteData();
+        checkScreenOrientation();
     });
+
+    // 監聽手機螢幕旋轉（橫屏自動全屏）
+    window.addEventListener('resize', () => {
+        checkScreenOrientation();
+    });
+
+    function checkScreenOrientation() {
+        const playerBox = document.getElementById('playerBox');
+        if (!isAndroidTV() && window.innerWidth > window.innerHeight && currentUrl) {
+            playerBox.classList.add('fullscreen-mode');
+            document.body.classList.add('fullscreen-active');
+        } else if (!isAndroidTV()) {
+            playerBox.classList.remove('fullscreen-mode');
+            document.body.classList.remove('fullscreen-active');
+        }
+    }
 
     function loadRemoteData() {
         const statusText = document.getElementById('statusText');
@@ -193,24 +216,24 @@
         }
     }
 
-    // 判斷當前裝置是否為 Android TV / 電視盒
     function isAndroidTV() {
         const ua = navigator.userAgent;
-        // 常見電視盒 UA 特徵或大螢幕
         return /Android/.test(ua) && (/TV|Leanback|GoogleTV|Amlogic|Rockchip/i.test(ua) || window.innerWidth > 1024);
     }
 
     function playStream(url, name) {
+        currentUrl = url;
+        currentName = name;
         const statusText = document.getElementById('statusText');
 
-        // 如果是手機或平板：直接走內建 WebView 播放，不呼叫 VLC
+        // 【手機版專屬】：直接在上方視窗播放，不呼叫外部 VLC
         if (!isAndroidTV()) {
-            statusText.innerText = '正在以內建播放器播放：' + name;
+            statusText.innerText = '正在播放：' + name;
             startNativeWebPlayer(url, name);
             return;
         }
 
-        // 以下維持電視盒專屬的雙模智能邏輯（有 VLC 用 VLC，沒 VLC 降級內建）
+        // 【電視盒專屬】：維持原本的雙模智能邏輯（優先試拉 VLC，沒裝則降級上方視窗）
         statusText.innerText = '正在嘗試呼叫 VLC 播放：' + name + '...';
         let vlcLaunched = false;
 
@@ -237,19 +260,17 @@
 
         setTimeout(() => {
             if (!vlcLaunched && !document.hidden) {
-                statusText.innerText = '未偵測到 VLC，自動切換電視內建播放：' + name;
+                statusText.innerText = '未偵測到 VLC，自動在內建視窗播放：' + name;
                 startNativeWebPlayer(url, name);
             }
         }, 1200);
     }
 
-    // 內建 WebView / mpegts 播放函式
     function startNativeWebPlayer(url, name) {
-        const playerBox = document.getElementById('playerBox');
         const videoElement = document.getElementById('videoElement');
+        const statusText = document.getElementById('statusText');
 
-        playerBox.classList.add('fullscreen-mode');
-        document.body.classList.add('fullscreen-active');
+        statusText.innerText = '正在播放： ' + name;
 
         if (flvPlayer) {
             flvPlayer.pause();
@@ -287,21 +308,25 @@
                 flvPlayer.play().catch(e => console.log(e));
             });
         } else {
-            // 備用原生 HTML5 播放
             videoElement.src = url;
             videoElement.play().catch(e => {
                 videoElement.muted = true;
                 videoElement.play();
             });
         }
+
+        checkScreenOrientation();
     }
 
-    // 返回鍵 / Esc 退出內建全屏
+    // 遙控器返回鍵 / Esc 支援
     window.addEventListener('keydown', (e) => {
         if (e.keyCode === 27 || e.keyCode === 4 || e.key === 'Escape' || e.key === 'Backspace') {
             const playerBox = document.getElementById('playerBox');
             if (playerBox.classList.contains('fullscreen-mode')) {
                 e.preventDefault();
+                playerBox.classList.remove('fullscreen-mode');
+                document.body.classList.remove('fullscreen-active');
+            } else {
                 if (flvPlayer) {
                     flvPlayer.pause();
                     flvPlayer.unload();
@@ -309,13 +334,8 @@
                     flvPlayer.destroy();
                     flvPlayer = null;
                 }
-                const videoElement = document.getElementById('videoElement');
-                videoElement.pause();
-                videoElement.src = "";
-
-                playerBox.classList.remove('fullscreen-mode');
-                document.body.classList.remove('fullscreen-active');
-                document.getElementById('statusText').innerText = '已退出播放，請選擇頻道';
+                currentUrl = '';
+                document.getElementById('statusText').innerText = '已停止播放，請選擇頻道';
             }
         }
     });
