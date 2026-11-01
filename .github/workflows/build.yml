@@ -55,6 +55,10 @@ jobs:
             sed -i '/<\/widget>/i \    <icon src="www/icon.png" />' myApp/config.xml
           fi
 
+      - name: Enable Cleartext Traffic for HTTP
+        run: |
+          find . -name "AndroidManifest.xml" -exec sed -i 's/<application/<application android:usesCleartextTraffic="true"/g' {} +
+
       - name: Build Android APK
         run: |
           cd myApp
