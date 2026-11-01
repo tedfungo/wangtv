@@ -58,13 +58,14 @@ jobs:
       - name: Build Android APK
         run: |
           cd myApp
-          cordova platform add android@latest
+          # 刪掉重複的 cordova platform add android@latest
           
-          # 🚀 關鍵修正：在專案建好、平台加入後，直接修改內部的 AndroidManifest.xml
+          # 直接注入明文權限
           sed -i 's/<application/<application android:usesCleartextTraffic="true"/g' platforms/android/app/src/main/AndroidManifest.xml
           
+          # 直接進行編譯
           cordova build android --debug
-
+          
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
