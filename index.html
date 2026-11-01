@@ -37,7 +37,7 @@
             color: #ffeb3b;
         }
 
-        /* 上方常駐播放視窗（對應截圖排版） */
+        /* 預設播放視窗：手機版顯示，電視盒首頁預設隱藏 */
         .player-box {
             display: block;
             width: 100%;
@@ -51,8 +51,14 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.5);
         }
 
-        /* 手機橫屏或自動全螢幕模式 */
+        /* 電視盒首頁時預設隱藏播放框 */
+        body.is-tv .player-box {
+            display: none !important;
+        }
+
+        /* 全螢幕模式（手機橫屏 或 電視盒降級內建播放時強制全螢幕彈出） */
         .player-box.fullscreen-mode {
+            display: block !important;
             position: fixed !important;
             top: 0 !important;
             left: 0 !important;
@@ -122,7 +128,7 @@
 <div class="container" id="mainContainer">
     <h4><img src="icon.png" alt="圖標" style="width: 30px; height: 30px; vertical-align: middle; margin-right: 6px;"> 黃敬波專線 <-- 有事找他(主謀)</h4>
     
-    <!-- 上方常駐播放視窗 -->
+    <!-- 播放視窗 -->
     <div class="player-box" id="playerBox">
         <video id="videoElement" playsinline webkit-playsinline autoplay></video>
     </div>
@@ -140,11 +146,13 @@
     const DATA_JS_URL = 'http://n6000.lithoconcepts.com:7222/data.js';
 
     window.addEventListener('DOMContentLoaded', () => {
+        if (isAndroidTV()) {
+            document.body.classList.add('is-tv');
+        }
         loadRemoteData();
         checkScreenOrientation();
     });
 
-    // 監聽手機螢幕旋轉（橫屏自動全屏）
     window.addEventListener('resize', () => {
         checkScreenOrientation();
     });
@@ -226,14 +234,14 @@
         currentName = name;
         const statusText = document.getElementById('statusText');
 
-        // 【手機版專屬】：直接在上方視窗播放，不呼叫外部 VLC
+        // 【手機版】：直接在上方視窗播放
         if (!isAndroidTV()) {
             statusText.innerText = '正在播放：' + name;
             startNativeWebPlayer(url, name);
             return;
         }
 
-        // 【電視盒專屬】：維持原本的雙模智能邏輯（優先試拉 VLC，沒裝則降級上方視窗）
+        // 【電視盒版】：優先嘗試呼叫外部 VLC
         statusText.innerText = '正在嘗試呼叫 VLC 播放：' + name + '...';
         let vlcLaunched = false;
 
@@ -258,19 +266,27 @@
             });
         }
 
+        // 電視盒沒裝 VLC 時，1.2秒後自動啟動內建播放器，並強制彈出全螢幕
         setTimeout(() => {
             if (!vlcLaunched && !document.hidden) {
-                statusText.innerText = '未偵測到 VLC，自動在內建視窗播放：' + name;
+                statusText.innerText = '未偵測到 VLC，自動全螢幕內建播放：' + name;
                 startNativeWebPlayer(url, name);
             }
         }, 1200);
     }
 
     function startNativeWebPlayer(url, name) {
+        const playerBox = document.getElementById('playerBox');
         const videoElement = document.getElementById('videoElement');
         const statusText = document.getElementById('statusText');
 
         statusText.innerText = '正在播放： ' + name;
+
+        // 如果是電視盒降級內建播放，強制讓隱藏的播放框以全螢幕彈出覆蓋畫面
+        if (isAndroidTV()) {
+            playerBox.classList.add('fullscreen-mode');
+            document.body.classList.add('fullscreen-active');
+        }
 
         if (flvPlayer) {
             flvPlayer.pause();
@@ -318,7 +334,7 @@
         checkScreenOrientation();
     }
 
-    // 遙控器返回鍵 / Esc 支援
+    // 遙控器返回鍵 / Esc 支援：退出全螢幕並銷毀播放器，回到乾淨首頁
     window.addEventListener('keydown', (e) => {
         if (e.keyCode === 27 || e.keyCode === 4 || e.key === 'Escape' || e.key === 'Backspace') {
             const playerBox = document.getElementById('playerBox');
@@ -326,7 +342,6 @@
                 e.preventDefault();
                 playerBox.classList.remove('fullscreen-mode');
                 document.body.classList.remove('fullscreen-active');
-            } else {
                 if (flvPlayer) {
                     flvPlayer.pause();
                     flvPlayer.unload();
@@ -334,6 +349,10 @@
                     flvPlayer.destroy();
                     flvPlayer = null;
                 }
+                const videoElement = document.getElementById('videoElement');
+                videoElement.pause();
+                videoElement.src = "";
+                
                 currentUrl = '';
                 document.getElementById('statusText').innerText = '已停止播放，請選擇頻道';
             }
