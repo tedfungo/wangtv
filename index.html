@@ -7,7 +7,7 @@
     <meta name="force-rendering" content="webkit">
     <meta name="x5-fullscreen" content="true">
     <meta name="x5-page-mode" content="app">
-    <title>黃敬波播放器-純電視盒版(SonyTV低延遲極致同步)</title>
+    <title>黃敬波播放器-純電視盒版(可切換VLC)</title>
     <script src="cordova.js"></script>
     <script src="mpegts.min.js"></script>
     <style>
@@ -35,6 +35,33 @@
             margin: 0 0 16px 0;
             font-size: 24px;
             color: #ffeb3b;
+        }
+
+        /* 頂部控制面板與按鈕排版 */
+        .control-panel {
+            margin-bottom: 20px;
+        }
+
+        button.mode-toggle-btn {
+            padding: 16px 24px;
+            font-size: 18px;
+            font-weight: bold;
+            background-color: #2e7d32;
+            color: white;
+            border: 3px solid #81c784;
+            border-radius: 12px;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.15s ease-in-out;
+            width: 100%;
+            text-align: center;
+        }
+
+        button.mode-toggle-btn:focus, button.mode-toggle-btn:hover {
+            background-color: #388e3c;
+            border-color: #ffeb3b;
+            box-shadow: 0 0 20px rgba(255, 235, 59, 0.7);
+            transform: scale(1.01);
         }
 
         .status {
@@ -70,7 +97,7 @@
             transform: scale(1.02);
         }
 
-        /* 內建 WebView 全屏播放容器（預設隱藏，沒裝 VLC 降級時全屏覆蓋） */
+        /* 內建 WebView 全屏播放容器 */
         .player-box {
             display: none;
             position: fixed;
@@ -102,13 +129,21 @@
 
 <div class="container" id="mainContainer">
     <h4><img src="icon.png" alt="圖標" style="width: 36px; height: 36px; vertical-align: middle; margin-right: 8px;"> 黃敬波專線 <-- 有事找他(主謀)</h4>
+    
+    <!-- 播放模式切換按鈕區塊 -->
+    <div class="control-panel">
+        <button id="modeToggleBtn" class="mode-toggle-btn" onclick="togglePlayMode()">
+            ⚙️ 播放模式：優先呼叫外部 VLC
+        </button>
+    </div>
+
     <div class="status" id="statusText">正在從伺服器同步最新頻道清單...</div>
 
     <!-- 頻道按鈕動態生成區域 -->
     <div class="btn-list" id="btnList"></div>
 </div>
 
-<!-- 內建全屏播放彈窗（沒裝 VLC 時自動使用） -->
+<!-- 內建全屏播放彈窗 -->
 <div class="player-box" id="playerBox">
     <video id="videoElement" playsinline webkit-playsinline autoplay></video>
 </div>
@@ -117,11 +152,37 @@
     let flvPlayer = null;
     let syncTimer = null;
     let isPlayingInternal = false;
+    let useVLC = true; // 預設使用 VLC
     const DATA_JS_URL = 'http://n6000.lithoconcepts.com:7222/data.js';
 
     window.addEventListener('DOMContentLoaded', () => {
+        // 從本地儲存讀取模式設定
+        const savedMode = localStorage.getItem('player_use_vlc');
+        if (savedMode !== null) {
+            useVLC = (savedMode === 'true');
+        }
+        updateModeButtonUI();
         loadRemoteData();
     });
+
+    function updateModeButtonUI() {
+        const btn = document.getElementById('modeToggleBtn');
+        if (useVLC) {
+            btn.innerText = '🚀 播放模式：優先呼叫外部 VLC (點擊切換)';
+            btn.style.backgroundColor = '#1b5e20';
+            btn.style.borderColor = '#4caf50';
+        } else {
+            btn.innerText = '📺 播放模式：純內建引擎全屏 (專治Sony音畫不同步, 點擊切換)';
+            btn.style.backgroundColor = '#b71c1c';
+            btn.style.borderColor = '#f44336';
+        }
+    }
+
+    function togglePlayMode() {
+        useVLC = !useVLC;
+        localStorage.setItem('player_use_vlc', useVLC);
+        updateModeButtonUI();
+    }
 
     function loadRemoteData() {
         const statusText = document.getElementById('statusText');
@@ -172,8 +233,9 @@
 
         if (count > 0) {
             statusText.innerText = '請選擇頻道';
-            const firstBtn = btnList.querySelector('.channel-btn');
-            if (firstBtn) firstBtn.focus();
+            // 將遙控器焦點預設落在模式切換按鈕或第一個頻道按鈕
+            const modeBtn = document.getElementById('modeToggleBtn');
+            if (modeBtn) modeBtn.focus();
         } else {
             statusText.innerText = '頻道清單內容為空';
         }
@@ -181,44 +243,51 @@
 
     function playStream(url, name) {
         const statusText = document.getElementById('statusText');
-        statusText.innerText = '正在嘗試呼叫 VLC 全屏播放：' + name + '...';
-        let vlcLaunched = false;
 
-        // 1. 優先嘗試透過 WebIntent 呼叫外部 VLC，並注入針對 Sony TV 的超低延遲網絡緩衝與同步參數
-        if (window.plugins && window.plugins.webintent) {
-            window.plugins.webintent.startActivity({
-                action: 'android.intent.action.VIEW',
-                url: url,
-                type: 'video/*',
-                package: 'org.videolan.vlc',
-                component: {
+        // 判斷是否開啟 VLC 模式
+        if (useVLC) {
+            statusText.innerText = '正在嘗試呼叫 VLC 全屏播放：' + name + '...';
+            let vlcLaunched = false;
+
+            if (window.plugins && window.plugins.webintent) {
+                window.plugins.webintent.startActivity({
+                    action: 'android.intent.action.VIEW',
+                    url: url,
+                    type: 'video/*',
                     package: 'org.videolan.vlc',
-                    class: 'org.videolan.vlc.gui.video.VideoPlayerActivity'
-                },
-                extras: {
-                    'title': name,
-                    'from_start': true,
-                    'position': 0,
-                    // === 專治 Sony TV 的 VLC 超低延遲與防音畫不同步注入參數 ===
-                    'network_caching': 150,           // 強制將網絡緩衝由預設的 1500ms 壓縮至 150ms（修復音訊快取延遲）
-                    'hardware_acceleration': 1,       // 強制啟動全硬體加速
-                    'audio_delay': 0                  // 重置並鎖定音訊零延遲
-                }
-            }, function() {
-                vlcLaunched = true;
-                statusText.innerText = '已成功啟動 VLC 播放：' + name;
-            }, function(e) {
-                console.log('VLC 呼叫未成功，準備降級', e);
-            });
-        }
-
-        // 2. 智慧降級：1.2秒內若沒有成功拉起 VLC，自動在電視上以 WebView 全屏播放
-        setTimeout(() => {
-            if (!vlcLaunched && !document.hidden) {
-                statusText.innerText = '未偵測到 VLC，自動切換內建引擎全屏播放：' + name;
-                startInternalFullscreenPlayer(url, name);
+                    component: {
+                        package: 'org.videolan.vlc',
+                        class: 'org.videolan.vlc.gui.video.VideoPlayerActivity'
+                    },
+                    extras: {
+                        'title': name,
+                        'from_start': true,
+                        'position': 0,
+                        'network_caching': 150,
+                        'hardware_acceleration': 1,
+                        'audio_delay': 0
+                    }
+                }, function() {
+                    vlcLaunched = true;
+                    statusText.innerText = '已成功啟動 VLC 播放：' + name;
+                }, function(e) {
+                    console.log('VLC 呼叫未成功，準備降級', e);
+                });
             }
-        }, 1200);
+
+            // 1.2 秒內若沒拉起 VLC，降級切換內建全屏
+            setTimeout(() => {
+                if (!vlcLaunched && !document.hidden) {
+                    statusText.innerText = '未偵測到 VLC，自動切換內建引擎全屏播放：' + name;
+                    startInternalFullscreenPlayer(url, name);
+                }
+            }, 1200);
+
+        } else {
+            // 使用者設定為「純內建引擎模式」，直接全屏播放
+            statusText.innerText = '使用內建引擎全屏播放：' + name;
+            startInternalFullscreenPlayer(url, name);
+        }
     }
 
     function startInternalFullscreenPlayer(url, name) {
@@ -231,7 +300,6 @@
         document.body.classList.add('fullscreen-active');
         isPlayingInternal = true;
 
-        // 每次播放前清理舊的播放器與校正計時器
         destroyPlayer();
 
         videoElement.muted = false;
@@ -245,13 +313,12 @@
                 hasVideo: true,
                 url: url
             }, {
-                // === 針對 Sony TV 內建解碼的極致對齊參數 ===
                 enableStashBuffer: true,
-                stashInitialSize: 192 * 1024,        // 192KB 初始緩衝，縮短音訊開局排隊時間
-                liveBufferLatencyChasing: true,     // 開啟追趕模式，防止聲畫漸漸不同步
-                liveBufferLatencyMaxLatency: 1.0,    // 容許最大延遲降至 1.0 秒
-                liveBufferLatencyMinRemain: 0.2,     // 保持 0.2 秒安全緩衝
-                fixAudioTimestampGap: true,          // 自動修正音訊時間戳微小斷層
+                stashInitialSize: 192 * 1024,
+                liveBufferLatencyChasing: true,
+                liveBufferLatencyMaxLatency: 1.0,
+                liveBufferLatencyMinRemain: 0.2,
+                fixAudioTimestampGap: true,
                 autoCleanupSourceBuffer: true,
                 enableWorker: false,
                 lazyLoad: false
@@ -266,7 +333,7 @@
                 flvPlayer.play().catch(e => console.log(e));
             });
 
-            // === 高頻心跳微調校正：每 1.5 秒檢測一次，時差超過 0.8 秒即刻對齊 ===
+            // 高頻心跳校正（專治 Sony TV 音畫不同步）
             syncTimer = setInterval(() => {
                 if (videoElement && videoElement.buffered.length > 0) {
                     const end = videoElement.buffered.end(videoElement.buffered.length - 1);
@@ -304,7 +371,7 @@
         }
     }
 
-    // 遙控器返回鍵 / Esc 支援：關閉內建全屏，完美回到乾淨首頁
+    // 遙控器返回鍵 / Esc 支援
     window.addEventListener('keydown', (e) => {
         if (e.keyCode === 27 || e.keyCode === 4 || e.key === 'Escape' || e.key === 'Backspace') {
             if (isPlayingInternal) {
@@ -322,7 +389,6 @@
                 isPlayingInternal = false;
                 document.getElementById('statusText').innerText = '已退出播放，請選擇頻道';
                 
-                // 讓焦點回到第一個頻道按鈕，方便遙控器繼續操作
                 const firstBtn = document.querySelector('.channel-btn');
                 if (firstBtn) firstBtn.focus();
             }
