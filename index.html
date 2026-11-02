@@ -7,7 +7,7 @@
     <meta name="force-rendering" content="webkit">
     <meta name="x5-fullscreen" content="true">
     <meta name="x5-page-mode" content="app">
-    <title>黃敬波播放器-純電視盒版(防聲話不同步)</title>
+    <title>黃敬波播放器-純電視盒版(SonyTV低延遲極致同步)</title>
     <script src="cordova.js"></script>
     <script src="mpegts.min.js"></script>
     <style>
@@ -184,7 +184,7 @@
         statusText.innerText = '正在嘗試呼叫 VLC 全屏播放：' + name + '...';
         let vlcLaunched = false;
 
-        // 1. 優先嘗試透過 WebIntent 呼叫外部 VLC 全屏播放
+        // 1. 優先嘗試透過 WebIntent 呼叫外部 VLC，並注入針對 Sony TV 的超低延遲網絡緩衝與同步參數
         if (window.plugins && window.plugins.webintent) {
             window.plugins.webintent.startActivity({
                 action: 'android.intent.action.VIEW',
@@ -198,7 +198,11 @@
                 extras: {
                     'title': name,
                     'from_start': true,
-                    'position': 0
+                    'position': 0,
+                    // === 專治 Sony TV 的 VLC 超低延遲與防音畫不同步注入參數 ===
+                    'network_caching': 150,           // 強制將網絡緩衝由預設的 1500ms 壓縮至 150ms（修復音訊快取延遲）
+                    'hardware_acceleration': 1,       // 強制啟動全硬體加速
+                    'audio_delay': 0                  // 重置並鎖定音訊零延遲
                 }
             }, function() {
                 vlcLaunched = true;
@@ -241,13 +245,13 @@
                 hasVideo: true,
                 url: url
             }, {
-                // === 針對 Sony TV 聲話同步與流暢度的最佳化參數 ===
+                // === 針對 Sony TV 內建解碼的極致對齊參數 ===
                 enableStashBuffer: true,
-                stashInitialSize: 384 * 1024,      // 384KB 初始緩衝，防止音訊開局丟包
+                stashInitialSize: 192 * 1024,        // 192KB 初始緩衝，縮短音訊開局排隊時間
                 liveBufferLatencyChasing: true,     // 開啟追趕模式，防止聲畫漸漸不同步
-                liveBufferLatencyMaxLatency: 1.5,    // 容許最大延遲 1.5 秒
-                liveBufferLatencyMinRemain: 0.3,     // 保持最低 0.3 秒安全緩衝
-                fixAudioTimestampGap: true,          // 自動修正音訊時間戳微小斷層（核心防不同步）
+                liveBufferLatencyMaxLatency: 1.0,    // 容許最大延遲降至 1.0 秒
+                liveBufferLatencyMinRemain: 0.2,     // 保持 0.2 秒安全緩衝
+                fixAudioTimestampGap: true,          // 自動修正音訊時間戳微小斷層
                 autoCleanupSourceBuffer: true,
                 enableWorker: false,
                 lazyLoad: false
@@ -262,17 +266,16 @@
                 flvPlayer.play().catch(e => console.log(e));
             });
 
-            // === 增加動態心跳校正：防止硬體解碼累積延遲造成聲話錯位 ===
+            // === 高頻心跳微調校正：每 1.5 秒檢測一次，時差超過 0.8 秒即刻對齊 ===
             syncTimer = setInterval(() => {
                 if (videoElement && videoElement.buffered.length > 0) {
                     const end = videoElement.buffered.end(videoElement.buffered.length - 1);
                     const diff = end - videoElement.currentTime;
-                    // 當累積延遲超過 1.8 秒時，自動追趕對齊
-                    if (diff > 1.8) {
-                        videoElement.currentTime = end - 0.3;
+                    if (diff > 0.8) {
+                        videoElement.currentTime = end - 0.15;
                     }
                 }
-            }, 3000);
+            }, 1500);
 
         } else {
             videoElement.src = url;
