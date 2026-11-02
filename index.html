@@ -7,7 +7,7 @@
     <meta name="force-rendering" content="webkit">
     <meta name="x5-fullscreen" content="true">
     <meta name="x5-page-mode" content="app">
-    <title>黃敬波播放器-純WebView頂級高清版</title>
+    <title>黃敬波播放器-純電視盒版(防聲話不同步)</title>
     <script src="cordova.js"></script>
     <script src="mpegts.min.js"></script>
     <style>
@@ -43,7 +43,7 @@
             margin-bottom: 20px;
         }
 
-        /* 頻道按鈕網格排版（專為電視盒遙控器優化） */
+        /* 頻道按鈕網格排版（適合遙控器大字體聚焦） */
         .btn-list {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -70,7 +70,7 @@
             transform: scale(1.02);
         }
 
-        /* 全屏頂級高清播放容器 */
+        /* 內建 WebView 全屏播放容器（預設隱藏，沒裝 VLC 降級時全屏覆蓋） */
         .player-box {
             display: none;
             position: fixed;
@@ -86,16 +86,11 @@
             display: block !important;
         }
 
-        /* 確保影片畫面強制以最高清、硬體加速、原比例渲染 */
         video {
             width: 100%;
             height: 100%;
             object-fit: contain;
             background-color: #000;
-            image-rendering: -webkit-optimize-contrast;
-            image-rendering: crisp-edges;
-            -webkit-transform: translate3d(0,0,0);
-            transform: translate3d(0,0,0);
         }
 
         video::-webkit-media-controls {
@@ -113,13 +108,14 @@
     <div class="btn-list" id="btnList"></div>
 </div>
 
-<!-- 頂級高清全屏播放彈窗 -->
+<!-- 內建全屏播放彈窗（沒裝 VLC 時自動使用） -->
 <div class="player-box" id="playerBox">
     <video id="videoElement" playsinline webkit-playsinline autoplay></video>
 </div>
 
 <script>
     let flvPlayer = null;
+    let syncTimer = null;
     let isPlayingInternal = false;
     const DATA_JS_URL = 'http://n6000.lithoconcepts.com:7222/data.js';
 
@@ -168,7 +164,7 @@
                 const btn = document.createElement('button');
                 btn.className = 'channel-btn';
                 btn.innerText = '📺 ' + name;
-                btn.onclick = () => startTopQualityPlayer(url, name);
+                btn.onclick = () => playStream(url, name);
                 btnList.appendChild(btn);
                 count++;
             }
@@ -183,29 +179,60 @@
         }
     }
 
-    // 點擊直接以最高解析度、純 WebView 全屏解碼播放
-    function startTopQualityPlayer(url, name) {
+    function playStream(url, name) {
+        const statusText = document.getElementById('statusText');
+        statusText.innerText = '正在嘗試呼叫 VLC 全屏播放：' + name + '...';
+        let vlcLaunched = false;
+
+        // 1. 優先嘗試透過 WebIntent 呼叫外部 VLC 全屏播放
+        if (window.plugins && window.plugins.webintent) {
+            window.plugins.webintent.startActivity({
+                action: 'android.intent.action.VIEW',
+                url: url,
+                type: 'video/*',
+                package: 'org.videolan.vlc',
+                component: {
+                    package: 'org.videolan.vlc',
+                    class: 'org.videolan.vlc.gui.video.VideoPlayerActivity'
+                },
+                extras: {
+                    'title': name,
+                    'from_start': true,
+                    'position': 0
+                }
+            }, function() {
+                vlcLaunched = true;
+                statusText.innerText = '已成功啟動 VLC 播放：' + name;
+            }, function(e) {
+                console.log('VLC 呼叫未成功，準備降級', e);
+            });
+        }
+
+        // 2. 智慧降級：1.2秒內若沒有成功拉起 VLC，自動在電視上以 WebView 全屏播放
+        setTimeout(() => {
+            if (!vlcLaunched && !document.hidden) {
+                statusText.innerText = '未偵測到 VLC，自動切換內建引擎全屏播放：' + name;
+                startInternalFullscreenPlayer(url, name);
+            }
+        }, 1200);
+    }
+
+    function startInternalFullscreenPlayer(url, name) {
         const playerBox = document.getElementById('playerBox');
         const videoElement = document.getElementById('videoElement');
         const statusText = document.getElementById('statusText');
 
-        statusText.innerText = '正在以最高畫質全屏播放： ' + name;
+        statusText.innerText = '正在全屏播放： ' + name;
         playerBox.classList.add('active');
         document.body.classList.add('fullscreen-active');
         isPlayingInternal = true;
 
-        if (flvPlayer) {
-            flvPlayer.pause();
-            flvPlayer.unload();
-            flvPlayer.detachMediaElement();
-            flvPlayer.destroy();
-            flvPlayer = null;
-        }
+        // 每次播放前清理舊的播放器與校正計時器
+        destroyPlayer();
 
         videoElement.muted = false;
         videoElement.volume = 1.0;
 
-        // 檢查並啟用最高效能的 mpegts / MSE 解碼，追求零延遲與最高原畫解析度
         if (window.mpegts && mpegts.getFeatureList().mseLivePlayback) {
             flvPlayer = mpegts.createPlayer({
                 type: 'flv',
@@ -214,11 +241,15 @@
                 hasVideo: true,
                 url: url
             }, {
-                enableStashBuffer: false,          // 關閉緩存堆疊，追求最低延遲與即時最高清
-                stashInitialSize: 128 * 1024,      // 最小初始緩衝，秒開
-                liveBufferLatencyChasing: true,    // 即時追趕直播延遲
-                autoCleanupSourceBuffer: true,     // 自動清理緩衝避免記憶體溢出
-                enableWorker: true,                // 啟用背景獨立執行緒解碼，畫面更流暢不卡頓
+                // === 針對 Sony TV 聲話同步與流暢度的最佳化參數 ===
+                enableStashBuffer: true,
+                stashInitialSize: 384 * 1024,      // 384KB 初始緩衝，防止音訊開局丟包
+                liveBufferLatencyChasing: true,     // 開啟追趕模式，防止聲畫漸漸不同步
+                liveBufferLatencyMaxLatency: 1.5,    // 容許最大延遲 1.5 秒
+                liveBufferLatencyMinRemain: 0.3,     // 保持最低 0.3 秒安全緩衝
+                fixAudioTimestampGap: true,          // 自動修正音訊時間戳微小斷層（核心防不同步）
+                autoCleanupSourceBuffer: true,
+                enableWorker: false,
                 lazyLoad: false
             });
 
@@ -226,12 +257,24 @@
             flvPlayer.load();
             
             flvPlayer.play().catch(err => {
-                console.warn('播放受阻，嘗試靜音自動播放', err);
+                console.warn('播放受阻，降級靜音播放', err);
                 videoElement.muted = true;
                 flvPlayer.play().catch(e => console.log(e));
             });
+
+            // === 增加動態心跳校正：防止硬體解碼累積延遲造成聲話錯位 ===
+            syncTimer = setInterval(() => {
+                if (videoElement && videoElement.buffered.length > 0) {
+                    const end = videoElement.buffered.end(videoElement.buffered.length - 1);
+                    const diff = end - videoElement.currentTime;
+                    // 當累積延遲超過 1.8 秒時，自動追趕對齊
+                    if (diff > 1.8) {
+                        videoElement.currentTime = end - 0.3;
+                    }
+                }
+            }, 3000);
+
         } else {
-            // 備用原生 HTML5 串流
             videoElement.src = url;
             videoElement.play().catch(e => {
                 videoElement.muted = true;
@@ -240,7 +283,25 @@
         }
     }
 
-    // 遙控器返回鍵 / Esc 支援：退出全屏並徹底釋放資源，返回乾淨首頁
+    function destroyPlayer() {
+        if (syncTimer) {
+            clearInterval(syncTimer);
+            syncTimer = null;
+        }
+        if (flvPlayer) {
+            try {
+                flvPlayer.pause();
+                flvPlayer.unload();
+                flvPlayer.detachMediaElement();
+                flvPlayer.destroy();
+            } catch (e) {
+                console.log(e);
+            }
+            flvPlayer = null;
+        }
+    }
+
+    // 遙控器返回鍵 / Esc 支援：關閉內建全屏，完美回到乾淨首頁
     window.addEventListener('keydown', (e) => {
         if (e.keyCode === 27 || e.keyCode === 4 || e.key === 'Escape' || e.key === 'Backspace') {
             if (isPlayingInternal) {
@@ -249,13 +310,7 @@
                 playerBox.classList.remove('active');
                 document.body.classList.remove('fullscreen-active');
                 
-                if (flvPlayer) {
-                    flvPlayer.pause();
-                    flvPlayer.unload();
-                    flvPlayer.detachMediaElement();
-                    flvPlayer.destroy();
-                    flvPlayer = null;
-                }
+                destroyPlayer();
                 
                 const videoElement = document.getElementById('videoElement');
                 videoElement.pause();
@@ -264,7 +319,7 @@
                 isPlayingInternal = false;
                 document.getElementById('statusText').innerText = '已退出播放，請選擇頻道';
                 
-                // 讓遙控器焦點回到原本的按鈕上
+                // 讓焦點回到第一個頻道按鈕，方便遙控器繼續操作
                 const firstBtn = document.querySelector('.channel-btn');
                 if (firstBtn) firstBtn.focus();
             }
