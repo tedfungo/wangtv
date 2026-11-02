@@ -7,7 +7,7 @@
     <meta name="force-rendering" content="webkit">
     <meta name="x5-fullscreen" content="true">
     <meta name="x5-page-mode" content="app">
-    <title>黃敬波播放器-純電視盒版(可切換VLC)</title>
+    <title>黃敬波播放器-純電視盒版</title>
     <script src="cordova.js"></script>
     <script src="mpegts.min.js"></script>
     <style>
@@ -32,36 +32,33 @@
         }
 
         h4 {
-            margin: 0 0 16px 0;
+            margin: 0 0 12px 0;
             font-size: 24px;
             color: #ffeb3b;
         }
 
-        /* 頂部控制面板與按鈕排版 */
+        /* 柔和、精簡的模式切換按鈕 */
         .control-panel {
-            margin-bottom: 20px;
+            margin-bottom: 16px;
         }
 
         button.mode-toggle-btn {
-            padding: 16px 24px;
-            font-size: 18px;
-            font-weight: bold;
-            background-color: #2e7d32;
-            color: white;
-            border: 3px solid #81c784;
-            border-radius: 12px;
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: normal;
+            background-color: #1e1e1e;
+            color: #b0bec5;
+            border: 1px solid #424242;
+            border-radius: 8px;
             cursor: pointer;
             outline: none;
             transition: all 0.15s ease-in-out;
-            width: 100%;
-            text-align: center;
         }
 
         button.mode-toggle-btn:focus, button.mode-toggle-btn:hover {
-            background-color: #388e3c;
+            background-color: #2c2c2c;
+            color: #ffffff;
             border-color: #ffeb3b;
-            box-shadow: 0 0 20px rgba(255, 235, 59, 0.7);
-            transform: scale(1.01);
         }
 
         .status {
@@ -130,10 +127,10 @@
 <div class="container" id="mainContainer">
     <h4><img src="icon.png" alt="圖標" style="width: 36px; height: 36px; vertical-align: middle; margin-right: 8px;"> 黃敬波專線 <-- 有事找他(主謀)</h4>
     
-    <!-- 播放模式切換按鈕區塊 -->
+    <!-- 精簡柔和的播放模式切換按鈕 -->
     <div class="control-panel">
         <button id="modeToggleBtn" class="mode-toggle-btn" onclick="togglePlayMode()">
-            ⚙️ 播放模式：優先呼叫外部 VLC
+            ⚙️ 播放模式：載入中...
         </button>
     </div>
 
@@ -156,7 +153,6 @@
     const DATA_JS_URL = 'http://n6000.lithoconcepts.com:7222/data.js';
 
     window.addEventListener('DOMContentLoaded', () => {
-        // 從本地儲存讀取模式設定
         const savedMode = localStorage.getItem('player_use_vlc');
         if (savedMode !== null) {
             useVLC = (savedMode === 'true');
@@ -168,13 +164,9 @@
     function updateModeButtonUI() {
         const btn = document.getElementById('modeToggleBtn');
         if (useVLC) {
-            btn.innerText = '🚀 播放模式：優先呼叫外部 VLC (點擊切換)';
-            btn.style.backgroundColor = '#1b5e20';
-            btn.style.borderColor = '#4caf50';
+            btn.innerText = '⚙️ 播放模式：[外部 VLC] (點擊切換為內建引擎)';
         } else {
-            btn.innerText = '📺 播放模式：純內建引擎全屏 (專治Sony音畫不同步, 點擊切換)';
-            btn.style.backgroundColor = '#b71c1c';
-            btn.style.borderColor = '#f44336';
+            btn.innerText = '⚙️ 播放模式：[純內建引擎·防聲畫不同步] (點擊切換為VLC)';
         }
     }
 
@@ -233,9 +225,8 @@
 
         if (count > 0) {
             statusText.innerText = '請選擇頻道';
-            // 將遙控器焦點預設落在模式切換按鈕或第一個頻道按鈕
-            const modeBtn = document.getElementById('modeToggleBtn');
-            if (modeBtn) modeBtn.focus();
+            const firstBtn = btnList.querySelector('.channel-btn');
+            if (firstBtn) firstBtn.focus();
         } else {
             statusText.innerText = '頻道清單內容為空';
         }
@@ -244,7 +235,6 @@
     function playStream(url, name) {
         const statusText = document.getElementById('statusText');
 
-        // 判斷是否開啟 VLC 模式
         if (useVLC) {
             statusText.innerText = '正在嘗試呼叫 VLC 全屏播放：' + name + '...';
             let vlcLaunched = false;
@@ -275,7 +265,6 @@
                 });
             }
 
-            // 1.2 秒內若沒拉起 VLC，降級切換內建全屏
             setTimeout(() => {
                 if (!vlcLaunched && !document.hidden) {
                     statusText.innerText = '未偵測到 VLC，自動切換內建引擎全屏播放：' + name;
@@ -284,7 +273,6 @@
             }, 1200);
 
         } else {
-            // 使用者設定為「純內建引擎模式」，直接全屏播放
             statusText.innerText = '使用內建引擎全屏播放：' + name;
             startInternalFullscreenPlayer(url, name);
         }
@@ -333,7 +321,6 @@
                 flvPlayer.play().catch(e => console.log(e));
             });
 
-            // 高頻心跳校正（專治 Sony TV 音畫不同步）
             syncTimer = setInterval(() => {
                 if (videoElement && videoElement.buffered.length > 0) {
                     const end = videoElement.buffered.end(videoElement.buffered.length - 1);
@@ -371,11 +358,12 @@
         }
     }
 
-    // 遙控器返回鍵 / Esc 支援
+    // 遙控器返回鍵 / Esc 支援：精準攔截，退回首頁而不關閉 App
     window.addEventListener('keydown', (e) => {
         if (e.keyCode === 27 || e.keyCode === 4 || e.key === 'Escape' || e.key === 'Backspace') {
             if (isPlayingInternal) {
-                e.preventDefault();
+                e.preventDefault(); // 阻止事件冒泡，防止直接退出 App
+                
                 const playerBox = document.getElementById('playerBox');
                 playerBox.classList.remove('active');
                 document.body.classList.remove('fullscreen-active');
@@ -389,6 +377,7 @@
                 isPlayingInternal = false;
                 document.getElementById('statusText').innerText = '已退出播放，請選擇頻道';
                 
+                // 將焦點安全還原到第一個頻道按鈕
                 const firstBtn = document.querySelector('.channel-btn');
                 if (firstBtn) firstBtn.focus();
             }
