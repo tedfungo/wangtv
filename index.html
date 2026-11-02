@@ -358,39 +358,37 @@
         }
     }
 
-    // 遙控器返回鍵 / Esc 支援：強力攔截事件，確保退回首頁而不關閉 App
-    window.addEventListener('keydown', (e) => {
-        if (e.keyCode === 27 || e.keyCode === 4 || e.key === 'Escape' || e.key === 'Backspace') {
-            if (isPlayingInternal) {
-                // 強力阻止事件向上冒泡與傳播，防止 Cordova 外殼關閉 App
-                e.preventDefault();
-                e.stopPropagation();
-                e.stopImmediatePropagation();
-                
-                const playerBox = document.getElementById('playerBox');
-                playerBox.classList.remove('active');
-                document.body.classList.remove('fullscreen-active');
-                
-                destroyPlayer();
-                
-                const videoElement = document.getElementById('videoElement');
-                videoElement.pause();
-                videoElement.src = "";
-                videoElement.load();
-                
-                isPlayingInternal = false;
-                document.getElementById('statusText').innerText = '已退出播放，請選擇頻道';
-                
-                // 將焦點安全還原到第一個頻道按鈕
-                setTimeout(() => {
-                    const firstBtn = document.querySelector('.channel-btn');
-                    if (firstBtn) firstBtn.focus();
-                }, 100);
-
-                return false;
+    // 攔截 Cordova 原生返回鍵事件（專治 Android TV 遙控器返回直接關閉 App）
+    document.addEventListener("backbutton", function (e) {
+        if (isPlayingInternal) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const playerBox = document.getElementById('playerBox');
+            playerBox.classList.remove('active');
+            document.body.classList.remove('fullscreen-active');
+            
+            destroyPlayer();
+            
+            const videoElement = document.getElementById('videoElement');
+            videoElement.pause();
+            videoElement.src = "";
+            videoElement.load();
+            
+            isPlayingInternal = false;
+            document.getElementById('statusText').innerText = '已退出播放，請選擇頻道';
+            
+            setTimeout(() => {
+                const firstBtn = document.querySelector('.channel-btn');
+                if (firstBtn) firstBtn.focus();
+            }, 100);
+        } else {
+            // 在首頁時允許正常退出 App
+            if (navigator.app && navigator.app.exitApp) {
+                navigator.app.exitApp();
             }
         }
-    }, true); // 使用捕獲階段優先攔截
+    }, false);
 </script>
 
 </body>
