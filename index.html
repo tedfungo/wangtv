@@ -358,11 +358,14 @@
         }
     }
 
-    // 遙控器返回鍵 / Esc 支援：精準攔截，退回首頁而不關閉 App
+    // 遙控器返回鍵 / Esc 支援：強力攔截事件，確保退回首頁而不關閉 App
     window.addEventListener('keydown', (e) => {
         if (e.keyCode === 27 || e.keyCode === 4 || e.key === 'Escape' || e.key === 'Backspace') {
             if (isPlayingInternal) {
-                e.preventDefault(); // 阻止事件冒泡，防止直接退出 App
+                // 強力阻止事件向上冒泡與傳播，防止 Cordova 外殼關閉 App
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
                 
                 const playerBox = document.getElementById('playerBox');
                 playerBox.classList.remove('active');
@@ -373,16 +376,21 @@
                 const videoElement = document.getElementById('videoElement');
                 videoElement.pause();
                 videoElement.src = "";
+                videoElement.load();
                 
                 isPlayingInternal = false;
                 document.getElementById('statusText').innerText = '已退出播放，請選擇頻道';
                 
                 // 將焦點安全還原到第一個頻道按鈕
-                const firstBtn = document.querySelector('.channel-btn');
-                if (firstBtn) firstBtn.focus();
+                setTimeout(() => {
+                    const firstBtn = document.querySelector('.channel-btn');
+                    if (firstBtn) firstBtn.focus();
+                }, 100);
+
+                return false;
             }
         }
-    });
+    }, true); // 使用捕獲階段優先攔截
 </script>
 
 </body>
