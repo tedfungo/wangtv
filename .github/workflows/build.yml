@@ -29,7 +29,7 @@ jobs:
 
       - name: Create Cordova Project & Add WebIntent Plugin
         run: |
-          cordova create myApp com.hjbe.player "黃敬波播放器"
+          cordova create myApp com.hjbe.player "Ted播放器"
           cd myApp
           cordova platform add android@13.0.0
           
@@ -59,9 +59,9 @@ jobs:
           cp index.html myApp/www/
           cp mpegts.min.js myApp/www/
           
-          if [ -f icon.png ]; then
-            cp ted.png myApp/www/icon.png
-            sed -i '/<\/widget>/i \    <icon src="www/icon.png" />' myApp/config.xml
+          if [ -f ted.png ]; then
+            cp ted.png myApp/www/ted.png
+            sed -i '/<\/widget>/i \    <icon src="www/ted.png" />' myApp/config.xml
           fi
 
       - name: Build Android APK
