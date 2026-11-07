@@ -60,7 +60,7 @@ jobs:
           cp mpegts.min.js myApp/www/
           
           if [ -f icon.png ]; then
-            cp icon.png myApp/www/icon.png
+            cp ted.png myApp/www/icon.png
             sed -i '/<\/widget>/i \    <icon src="www/icon.png" />' myApp/config.xml
           fi
 
@@ -78,5 +78,5 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: 黃敬波播放器-遙遙領先版
-          path: myApp/platforms/android/app/build/outputs/apk/debug/app-debug.apk
+          name: Ted版播放器
+          path: myApp/platforms/android/app/build/outputs/apk/debug/te.apk
