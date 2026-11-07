@@ -7,7 +7,7 @@
     <meta name="force-rendering" content="webkit">
     <meta name="x5-fullscreen" content="true">
     <meta name="x5-page-mode" content="app">
-    <title>黃敬波播放器-純電視盒版</title>
+    <title>播放器-純電視盒版</title>
     <script src="cordova.js"></script>
     <script src="mpegts.min.js"></script>
     <style>
@@ -125,7 +125,7 @@
 <body>
 
 <div class="container" id="mainContainer">
-    <h4><img src="icon.png" alt="圖標" style="width: 36px; height: 36px; vertical-align: middle; margin-right: 8px;"> 黃敬波專線 <-- 有事找他(主謀)</h4>
+
     
     <!-- 精簡柔和的播放模式切換按鈕 -->
     <div class="control-panel">
@@ -150,7 +150,7 @@
     let syncTimer = null;
     let isPlayingInternal = false;
     let useVLC = true; // 預設使用 VLC
-    const DATA_JS_URL = 'http://n6000.lithoconcepts.com:7222/data.js';
+    const DATA_JS_URL = 'http://n6000.lithoconcepts.com:7222/teddata.js';
 
     window.addEventListener('DOMContentLoaded', () => {
         const savedMode = localStorage.getItem('player_use_vlc');
